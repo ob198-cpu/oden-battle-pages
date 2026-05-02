@@ -3015,7 +3015,7 @@ function renderBattle() {
     if (ub) showUnitInfo(ub);
   } else {
     document.getElementById('battle-basic-info').innerHTML =
-      '<span class="dim" style="font-size:13px;line-height:1.5;">味方または敵を盤からクリック。操作は右メニューに表示されます。</span>';
+      '<span class="dim" style="font-size:13px;line-height:1.5;">味方または敵をクリックしてください。アクションと移動範囲が表示されます。</span>';
     document.getElementById('unit-info').innerHTML = '';
   }
   requestAnimationFrame(()=>{ updateBattleFloatingUI(); refreshCancelStrip(); });
