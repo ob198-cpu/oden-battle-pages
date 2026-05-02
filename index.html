@@ -1,0 +1,3185 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ターン制マスバトル シミュレーション</title>
+<style>
+:root {
+  --bg:#13142b; --panel:#1e2142; --panel2:#2a2e55; --cell:#2a3356; --cell-alt:#242d4a;
+  --accent:#e94560; --ally:#5ec2ff; --enemy:#ff7a5c; --text:#e6ecfa; --dim:#8a92a8;
+  --gold:#ffd166; --green:#7ed957;
+}
+* { box-sizing: border-box; }
+html,body { margin:0; padding:0; font-family:'Hiragino Sans','Meiryo',sans-serif; background:var(--bg); color:var(--text); min-height:100vh; font-size:15px; }
+body:has(#screen-battle.active) { overflow:hidden; }
+#app { max-width:min(1240px, 100%); margin:0 auto; padding:8px; }
+#app:has(#screen-battle.active) { max-width:none; margin:0; padding:0; height:100dvh; overflow:hidden; background:#07090f url("img/素材/ChatGPT Image 2026年5月1日 21_44_50.png?v=20260501") center/cover no-repeat; }
+#app:has(#screen-placement.active) { max-width:none; margin:0; padding:0; height:100dvh; overflow:hidden; }
+h1,h2,h3 { margin:6px 0; }
+button { background:var(--panel2); color:var(--text); border:1px solid #445; padding:6px 12px; cursor:pointer; border-radius:4px; font-family:inherit; font-size:14px; }
+button:hover:not(:disabled) { background:#354079; }
+button.primary { background:var(--accent); border-color:#d33; font-weight:bold; }
+button.primary:hover:not(:disabled) { background:#ff5a70; }
+button.ghost { background:transparent; }
+button:disabled { opacity:0.35; cursor:not-allowed; }
+.screen { display:none; }
+.screen.active { display:block; }
+.flex { display:flex; }
+.gap8 { gap:8px; }
+.gap12 { gap:12px; }
+.center { align-items:center; justify-content:center; }
+.col { flex-direction:column; }
+.dim { color:var(--dim); font-size:12px; }
+.tag { display:inline-block; padding:2px 6px; border-radius:3px; font-size:11px; background:var(--panel2); margin-right:4px; }
+.tag.sapporo { background:#3a5a9c; }
+.tag.hakodate { background:#8a4c9e; }
+.tag.sisokyo { background:#9c5a3a; }
+.tag.free { background:#555; }
+
+/* Title */
+#app:has(#screen-title.active) { max-width:none; margin:0; padding:0; height:100dvh; overflow:hidden; }
+#screen-title { position:relative; width:100vw; height:100dvh; text-align:center; padding-top:9vh; overflow:hidden; background:#07090f url("img/素材/ChatGPT Image 2026年5月1日 21_44_50.png?v=20260501") center/cover no-repeat; }
+#screen-title::before { content:""; position:absolute; inset:0; background:radial-gradient(circle at center 28%, rgba(10,12,18,0.15), rgba(5,7,12,0.55) 58%, rgba(0,0,0,0.72)); pointer-events:none; }
+#screen-title h1,
+#screen-title > p.dim,
+#screen-title .buttons,
+#screen-title .note { position:relative; z-index:1; }
+#screen-title h1 { font-size:clamp(40px, 5.2vw, 76px); letter-spacing:0.08em; color:#f4d17c; text-shadow:0 3px 2px #1a0903, 0 0 18px rgba(255,204,91,0.65); }
+#screen-title > p.dim { margin-top:3.4vh; color:#c9d4e8; text-shadow:0 2px 3px rgba(0,0,0,0.9); }
+#screen-title .buttons { margin-top:4.8vh; display:flex; gap:clamp(16px, 2vw, 34px); justify-content:center; align-items:center; overflow:visible; }
+#screen-title .buttons button { min-width:clamp(160px, 14vw, 230px); min-height:clamp(42px, 5.4vh, 60px); padding:0 24px; border:1px solid rgba(236,184,87,0.85); border-radius:5px; color:#fff; font-weight:bold; font-size:clamp(14px, 1.3vw, 18px); text-shadow:0 2px 3px rgba(0,0,0,0.95); background:linear-gradient(180deg, #9a302b 0%, #6d1715 56%, #35100f 100%); box-shadow:inset 0 0 0 2px rgba(70,22,14,0.8), 0 0 12px rgba(0,0,0,0.55); }
+#screen-title .buttons button:nth-child(3) { background:linear-gradient(180deg, #1f3e69 0%, #172947 56%, #0b1424 100%); }
+#screen-title .buttons button:hover:not(:disabled) { filter:brightness(1.15); background-color:transparent; }
+#screen-title .buttons button:active:not(:disabled) { filter:brightness(0.86); background-color:transparent; }
+#screen-title .note { color:#c5cfdf; margin-top:5vh; font-size:clamp(12px, 1.1vw, 15px); line-height:1.7; text-shadow:0 2px 3px rgba(0,0,0,0.95); }
+
+/* Team confirm cards */
+#app:has(#screen-team.active) { max-width:none; margin:0; padding:0; min-height:100dvh; background:#07090f url("img/素材/ChatGPT Image 2026年5月1日 21_44_50.png?v=20260501") center/cover no-repeat; }
+#screen-team { min-height:100dvh; background:radial-gradient(circle at center 28%, rgba(10,12,18,0.2), rgba(5,7,12,0.55) 58%, rgba(0,0,0,0.72)); }
+.team-card {
+  background:var(--panel);
+  border:2px solid #3a4870;
+  border-radius:10px;
+  padding:0;
+  cursor:default;
+  transition:all 0.18s;
+  position:relative;
+  width:148px;
+  flex-shrink:0;
+  overflow:hidden;
+}
+.team-card.swappable { cursor:pointer; }
+.team-card.swappable:hover { border-color:#7ab0ff; filter:brightness(1.08); }
+.team-card.marked { border-color:#ff6b6b; outline:2px solid #ff6b6b; }
+.team-card .tc-portrait { width:100%; aspect-ratio:2/3; object-fit:cover; object-position:center 15%; display:block; background:#1a1d35; }
+.team-card .tc-body { padding:8px 10px 10px; }
+.team-card .tc-name { font-weight:bold; font-size:14px; margin-bottom:2px; }
+.team-card .tc-role { font-size:11px; color:var(--dim); }
+.team-card .tc-stats { font-size:11px; margin-top:4px; color:var(--gold); }
+.team-card .tc-swap-flag { position:absolute; top:6px; right:6px; background:#ff6b6b; color:#fff; font-size:10px; font-weight:bold; padding:1px 5px; border-radius:4px; }
+/* 古いchar-card（チーム確認以外で使う場合の互換） */
+.char-card { background:var(--panel); border:2px solid transparent; border-radius:6px; padding:8px; cursor:pointer; transition:all 0.15s; position:relative; }
+.char-card .char-portrait { width:100%; aspect-ratio:2/3; object-fit:cover; object-position:center 15%; border-radius:4px; margin-bottom:4px; display:block; background:#1a1d35; }
+.tooltip .tooltip-flex { display:flex; gap:10px; align-items:flex-start; max-width:100%; }
+.tooltip .t-portrait { width:86px; height:128px; object-fit:cover; object-position:center 15%; border-radius:6px; flex-shrink:0; background:#1a1d35; }
+.tooltip .t-body { flex:1; min-width:0; }
+#battle-float .bf-portrait { width:100%; max-height:140px; object-fit:cover; object-position:center 15%; border-radius:8px; display:block; margin-bottom:8px; background:#1a1d35; }
+#screen-placement .bench-face { width:48px; height:64px; object-fit:cover; object-position:center 15%; border-radius:4px; flex-shrink:0; background:#1a1d35; }
+#screen-placement .bench-row { display:flex; gap:8px; align-items:flex-start; }
+.char-card .name { font-weight:bold; margin-bottom:2px; }
+.char-card .role { font-size:11px; color:var(--dim); }
+.char-card .stats { font-size:11px; margin-top:4px; color:var(--gold); }
+.char-card .num { position:absolute; top:4px; right:6px; color:var(--dim); font-size:11px; z-index:2; background:rgba(0,0,0,0.35); padding:0 4px; border-radius:3px; }
+#team-info { margin-top:10px; padding:8px 12px; background:var(--panel); border-radius:4px; }
+.selected-list { display:flex; gap:6px; flex-wrap:wrap; margin-top:6px; }
+.selected-list .chip { padding:3px 8px; background:var(--panel2); border-radius:12px; font-size:12px; }
+
+/* Placement */
+#app:has(#screen-placement.active) { background:#07090f url("img/素材/ChatGPT Image 2026年5月1日 21_44_50.png?v=20260501") center/cover no-repeat; }
+#screen-placement.screen.active { height:100dvh; max-height:100vh; overflow:hidden; background:radial-gradient(circle at center 28%, rgba(10,12,18,0.15), rgba(5,7,12,0.5) 58%, rgba(0,0,0,0.65)); }
+#screen-placement .pstage { --place-left-gap:clamp(96px, 12vw, 180px); --place-info-w:clamp(220px, 22vw, 300px); height:100%; display:flex; flex-direction:row; gap:0; align-items:stretch; justify-content:flex-start; overflow:hidden; padding:1mm; box-sizing:border-box; }
+#screen-placement .pstage::before { content:""; flex:0 0 var(--place-left-gap); height:100%; }
+#screen-placement .place-main { flex:0 0 auto; height:100%; min-width:0; display:flex; align-items:flex-start; justify-content:flex-start; background:transparent; overflow:hidden; }
+#screen-placement #place-board { flex:0 0 auto; }
+#screen-placement .place-side { flex:0 0 320px; height:100%; box-sizing:border-box; display:flex; flex-direction:column; gap:8px; padding:10px; background:rgba(5,8,13,0.82); border-left:1px solid rgba(196,142,70,0.45); overflow:hidden; }
+#screen-placement .place-info-side { flex:0 0 var(--place-info-w); min-width:0; height:100%; box-sizing:border-box; display:flex; flex-direction:column; padding:10px; background:rgba(5,8,13,0.82); border-left:1px solid rgba(196,142,70,0.45); overflow-y:auto; }
+#screen-placement .place-side h2 { margin:0; font-size:18px; }
+#screen-placement .place-side-actions { display:flex; gap:8px; }
+#screen-placement .place-side-actions button { flex:1; }
+#screen-placement .bench { flex:1 1 auto; min-height:0; overflow-y:auto; background:transparent; padding:0; border-radius:0; }
+#screen-placement .bench h3 { margin:0 0 6px 0; font-size:14px; color:var(--gold); }
+#screen-placement .bench .slot { padding:8px 10px; margin-bottom:6px; background:rgba(15,20,35,0.75); border-radius:4px; cursor:pointer; font-size:13px; border:1px solid rgba(196,142,70,0.3); transition:all 0.15s; }
+#screen-placement .bench .slot:hover:not(.done) { background:rgba(40,55,100,0.7); border-color:rgba(196,142,70,0.6); }
+#screen-placement .bench .slot.active { background:var(--accent); border-color:var(--gold); box-shadow:0 0 12px rgba(233,69,96,0.6); }
+#screen-placement .bench .slot.done { opacity:0.35; cursor:not-allowed; text-decoration:line-through; }
+#screen-placement .guide { background:rgba(15,20,35,0.75); border:1px solid rgba(196,142,70,0.3); padding:8px 10px; border-radius:6px; margin:0; font-size:12px; line-height:1.55; }
+#screen-placement .guide .step { display:inline-block; background:var(--accent); color:#fff; width:22px; height:22px; text-align:center; line-height:22px; border-radius:50%; margin-right:6px; font-weight:bold; }
+#screen-placement #place-info { flex:1; width:100%; align-self:stretch; min-height:0; overflow-x:hidden; overflow-y:auto; background:rgba(5,8,13,0.82); border:1px solid rgba(196,142,70,0.45); border-radius:6px; padding:8px; font-size:12px; line-height:1.45; word-break:break-word; overflow-wrap:anywhere; }
+#screen-placement #place-info .info-portrait { width:100%; max-height:220px; object-fit:contain; object-position:center 15%; border-radius:6px; display:block; margin-bottom:8px; background:#1a1d35; }
+#screen-placement #place-info .info-section { margin-top:7px; padding-top:6px; border-top:1px solid #323a68; }
+#screen-placement #place-info .info-label { color:var(--gold); font-weight:bold; font-size:12px; }
+#screen-placement #place-info .info-name { font-weight:bold; margin-top:2px; font-size:12px; }
+#screen-placement #place-info .skill-desc,
+#screen-placement #place-info .dim,
+#screen-placement #place-info .info-name { white-space:normal; word-break:break-word; overflow-wrap:anywhere; }
+
+/* Battle：盤＋右サイドバー */
+#screen-battle.screen.active {
+  display:flex;
+  flex-direction:row;
+  justify-content:flex-start;
+  align-items:flex-start;
+  height:100dvh;
+  max-height:100vh;
+  width:100%;
+  overflow:hidden;
+}
+#battle-layout {
+  display:contents;
+}
+#battle-sidebar {
+  --battle-side-w: clamp(460px, 50vw, 660px);
+  --ui-panel-bg:url("img/素材/ChatGPT Image 2026年5月1日 20_34_50.png?v=20260501");
+  --ui-char-bg:url("img/素材/ChatGPT Image 2026年5月1日 21_28_28.png?v=20260501");
+
+  flex:0 0 var(--battle-side-w);
+  order:2;
+  display:flex;
+  flex-direction:row;
+  gap:8px;
+  padding:8px;
+  background:#05080d var(--ui-char-bg) center/cover no-repeat;
+  border-left:2px solid #2a3360;
+  font-size:15px;
+  line-height:1.45;
+  overflow:hidden;
+}
+#battle-info-panel, #battle-action-panel { min-width:0; min-height:0; display:flex; flex-direction:column; gap:8px; max-height:calc(100dvh - 16px); height:calc(100dvh - 16px); }
+#battle-info-panel { flex:1 1 38%; }
+#battle-action-panel { flex:0 0 62%; padding:8px; border:1px solid rgba(196,142,70,0.45); border-radius:8px; background:#05080d var(--ui-char-bg) center/cover no-repeat; box-shadow:inset 0 0 22px rgba(0,0,0,0.7); overflow:hidden; }
+#battle-sidebar,
+#battle-sidebar .dim,
+#battle-sidebar .skill-desc,
+#battle-sidebar .info-label,
+#battle-sidebar .info-name,
+#battle-sidebar .side-hint,
+#battle-sidebar .side-desc,
+#battle-sidebar .side-desc strong,
+#battle-sidebar #log,
+#battle-sidebar #log .line,
+#battle-sidebar button {
+  color:#fff !important;
+}
+#battle-sidebar .turn-meta { font-weight:bold; flex-shrink:0; padding-left:8px; }
+#battle-sidebar #turn-side.side.p1 { color:var(--ally); }
+#battle-sidebar #turn-side.side.p2 { color:var(--enemy); }
+#battle-sidebar #turn-hint { display:none; }
+#battle-sidebar #unit-info { flex:1 1 auto; padding:12px; font-size:14px; border:1px solid rgba(196,142,70,0.55); border-radius:8px; background:#05080d var(--ui-char-bg) center/cover no-repeat; overflow-y:auto; min-height:0; box-shadow:inset 0 0 22px rgba(0,0,0,0.8); }
+#battle-sidebar #unit-info:empty { border-color:transparent; background:transparent; box-shadow:none; padding:0; flex:0 0 0; min-height:0; overflow:hidden; }
+#battle-sidebar #unit-info .info-portrait { max-height:110px; }
+#battle-sidebar #battle-basic-info { flex:0 0 auto; padding:12px; border:1px solid rgba(196,142,70,0.55); border-radius:8px; font-size:14px; background:#05080d var(--ui-char-bg) center/cover no-repeat; box-shadow:inset 0 0 18px rgba(0,0,0,0.65); }
+#battle-sidebar #battle-basic-info .info-portrait { width:100%; max-height:200px; object-fit:cover; object-position:center 15%; border-radius:6px; display:block; margin-bottom:8px; background:#1a1d35; }
+#battle-sidebar #battle-actions { flex:0 0 auto; display:flex; flex-direction:column; gap:0; padding-top:8px; border-top:1px solid #2a3360; }
+#battle-sidebar #battle-actions button { width:100%; min-height:120px; padding:16px 14px 16px 118px; display:flex; flex-direction:column; justify-content:center; align-items:flex-start; overflow:hidden; font-size:15px; line-height:1.2; text-align:left; border:0; border-radius:6px; background-color:#06111d; background-repeat:no-repeat; background-size:100% 100%; background-position:left center; box-shadow:none; text-shadow:0 1px 2px rgba(0,0,0,0.9); }
+#battle-sidebar #battle-actions button:hover:not(:disabled) { filter:brightness(1.15); }
+#battle-sidebar #battle-actions button:active:not(:disabled) { filter:brightness(0.82); }
+#battle-sidebar #battle-actions button:disabled { filter:grayscale(0.9) brightness(0.58); opacity:1; }
+#battle-sidebar #battle-actions button:nth-of-type(1) { background-image:url("img/ui/button-attack2.png?v=20260503"); background-size:100% 100%; border-radius:6px 6px 0 0; }
+#battle-sidebar #battle-actions button:nth-of-type(2) { background-image:url("img/ui/button-skill2.png?v=20260503"); background-size:100% 100%; border-radius:0; }
+#battle-sidebar #battle-actions button:nth-of-type(3) { background-image:url("img/ui/button-ougi2.png?v=20260503"); background-size:100% 100%; border-radius:0 0 6px 6px; }
+#battle-sidebar #battle-actions .action-label { display:flex; align-items:center; gap:8px; justify-content:flex-start; text-align:left; line-height:1.15; max-width:100%; }
+#battle-sidebar #battle-actions .action-icon { width:0; height:0; opacity:0; flex:0 0 0; }
+#battle-sidebar #battle-actions .side-hint { font-size:14px; color:#a8d4ff; line-height:1.4; }
+#battle-sidebar #battle-actions .side-desc { max-width:100%; font-size:12px; color:var(--dim); line-height:1.4; margin-top:4px; padding-left:0; border-left:0; white-space:normal; word-break:break-all; }
+#battle-sidebar #battle-actions .side-desc strong { color:var(--text); display:block; margin-bottom:2px; }
+#battle-sidebar #log { flex:1 1 auto; min-height:0; overflow-y:auto; font-size:13px; padding:28px 14px 14px 14px; border:1px solid rgba(196,142,70,0.6); border-radius:8px; background:#07101a var(--ui-panel-bg) center/100% 100% no-repeat; box-shadow:inset 0 0 20px rgba(0,0,0,0.7); }
+#battle-sidebar .end-turn-btn { margin-top:0; flex-shrink:0; width:100%; padding:18px 8px; font-size:24px; border:0; border-radius:6px; background-color:#43120d; background-image:url("img/ui/button-end-n.png?v=20260501"); background-repeat:no-repeat; background-size:cover; background-position:center; text-shadow:0 2px 3px rgba(0,0,0,0.9); box-shadow:none; overflow:hidden; }
+#battle-sidebar .end-turn-btn:hover { filter:brightness(1.2); }
+#battle-sidebar .end-turn-btn:active { filter:brightness(0.88); }
+#battle-board-wrap {
+  --battle-board-base: min(calc(100dvh - 2mm), calc(100vw - clamp(460px, 50vw, 660px) - 2mm));
+  --battle-left-gap: calc((var(--battle-board-base) - 2 * max(2px, 0.2vmin) - 7 * max(1px, 0.2vmin)) / 8);
+  flex:0 0 auto;
+  order:1;
+  min-width:0;
+  height:100dvh;
+  display:flex;
+  align-items:flex-start;
+  justify-content:flex-start;
+  padding:1mm 1mm 1mm var(--battle-left-gap);
+  overflow:hidden;
+  background:transparent;
+}
+#screen-battle #board.board-battle {
+  display:grid;
+  grid-template-columns:repeat(8, 1fr);
+  grid-template-rows:repeat(8, 1fr);
+  gap:max(1px, 0.2vmin);
+  width:min(calc(100dvh - 2mm), calc(100vw - clamp(460px, 50vw, 660px) - var(--battle-left-gap) - 1mm));
+  height:min(calc(100dvh - 2mm), calc(100vw - clamp(460px, 50vw, 660px) - var(--battle-left-gap) - 1mm));
+  aspect-ratio:1;
+}
+#screen-battle #board.board-battle.use-board-bg {
+  gap:0px;
+  padding:28px 24px 24px 24px;
+  background:#070916 url("img/背景/背景マップ　ノーマル.png?v=20260501-2") center/100% 100% no-repeat;
+}
+#screen-battle #board.board-battle .cell {
+  width:100%;
+  height:100%;
+  min-height:0;
+  min-width:0;
+  font-size:clamp(9px, 1.3vmin, 13px);
+}
+#screen-battle #board.board-battle .unit .uname { font-size:clamp(7px, 1.2vmin, 11px); }
+
+/* 配置フェーズ：右メニュー以外の領域で最大正方形 */
+.board.placement-board {
+  grid-template-columns:repeat(8, 1fr);
+  grid-template-rows:repeat(8, 1fr);
+  gap:max(1px, 0.2vmin);
+  width:calc(100dvh - 2mm);
+  height:calc(100dvh - 2mm);
+  max-width:calc(100dvh - 2mm);
+  max-height:calc(100dvh - 2mm);
+  padding:max(2px, 0.2vmin);
+}
+.board.placement-board .cell { width:100%; height:100%; min-width:0; min-height:0; }
+
+#board, .board { --board-bg-image:none; --board-grid-gap:2px; --board-grid-padding:2px; display:grid; grid-template-columns:repeat(8, 72px); grid-auto-rows:72px; gap:var(--board-grid-gap); background:#070916; padding:var(--board-grid-padding); border-radius:6px; width:fit-content; }
+.board.use-board-bg {
+  --board-bg-image:url("img/背景/背景マップ　ノーマル.png?v=20260501-2");
+  --board-grid-gap:0px;
+  --board-grid-top:28px;
+  --board-grid-right:24px;
+  --board-grid-bottom:24px;
+  --board-grid-left:24px;
+  background:#070916 var(--board-bg-image) center/100% 100% no-repeat;
+  padding:var(--board-grid-top) var(--board-grid-right) var(--board-grid-bottom) var(--board-grid-left);
+}
+.board.use-board-bg .cell,
+.board.use-board-bg .cell:nth-child(even),
+.board.use-board-bg .cell.p1zone,
+.board.use-board-bg .cell.p2zone,
+.board.use-board-bg .cell.p1zone:nth-child(even),
+.board.use-board-bg .cell.p2zone:nth-child(even) { background:transparent; border:none; }
+.board.use-board-bg .cell.visual-blue-zone,
+.board.use-board-bg .cell.visual-blue-zone:nth-child(even) { background:url("img/背景/青セル.png?v=20260501-2") center/100% 100% no-repeat; }
+.board.use-board-bg .cell.visual-red-zone,
+.board.use-board-bg .cell.visual-red-zone:nth-child(even) { background:url("img/背景/赤セル.png?v=20260501-2") center/100% 100% no-repeat; }
+.cell { background:#253052; border:1px solid #050713; position:relative; width:72px; height:72px; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:11px; transition:background 0.1s; }
+.cell:nth-child(even) { background:var(--cell-alt); }
+.cell.p1zone { background:#2b3f69; }
+.cell.p2zone { background:#623737; }
+.cell.p1zone:nth-child(even) { background:#29406c; }
+.cell.p2zone:nth-child(even) { background:#663a3a; }
+.cell.place-ready { background:#3f5690 !important; box-shadow:inset 0 0 0 2px #7ab0ff; }
+.cell.highlight-threat { background:rgba(220,54,54,0.55) !important; box-shadow:inset 0 0 0 2px #ff9b9b; }
+.cell.highlight-move { background:#2e8f4c !important; box-shadow:inset 0 0 0 2px #7fff9f; animation:blink 1.2s ease-in-out infinite; }
+.cell.highlight-attack { background:rgba(255,72,72,0.82) !important; box-shadow:inset 0 0 0 3px #ffd0d0, 0 0 16px rgba(255,72,72,0.8); animation:blink 1.2s ease-in-out infinite; }
+.cell.highlight-skill { background:#2a66a8 !important; box-shadow:inset 0 0 0 2px #7fb8ff; animation:blink 1.2s ease-in-out infinite; }
+.cell.highlight-cell { background:#a08a2a !important; box-shadow:inset 0 0 0 2px #ffe37f; animation:blink 1.2s ease-in-out infinite; }
+.cell.selected { outline:2px solid var(--gold); }
+@keyframes blink { 0%,100%{ filter:brightness(1); } 50%{ filter:brightness(1.4); } }
+/* ===== ATTACK / SKILL EFFECTS ===== */
+.cell.attack-effect::after { content:""; position:absolute; inset:-8px; border-radius:6px; background:radial-gradient(circle, rgba(255,255,255,1), rgba(255,80,0,0.9), transparent 70%); animation:attackFlash 0.4s ease-out; pointer-events:none; z-index:8; }
+@keyframes attackFlash { 0%{ transform:scale(0.2); opacity:1; } 60%{ transform:scale(1.4); opacity:0.8; } 100%{ transform:scale(1.8); opacity:0; } }
+.cell.attack-effect { animation:cellShake 0.35s ease-in-out; }
+@keyframes cellShake { 0%,100%{transform:translate(0,0)} 20%{transform:translate(-5px,3px)} 40%{transform:translate(5px,-3px)} 60%{transform:translate(-4px,2px)} 80%{transform:translate(3px,-2px)} }
+.cell.skill-effect::after { content:""; position:absolute; inset:-12px; border-radius:50%; background:radial-gradient(circle, rgba(100,200,255,1), rgba(0,100,255,0.7), transparent 65%); animation:skillFlash 0.6s ease-out; pointer-events:none; z-index:8; }
+@keyframes skillFlash { 0%{transform:scale(0.1) rotate(0deg);opacity:1;} 50%{transform:scale(1.6) rotate(180deg);opacity:0.8;} 100%{transform:scale(2.5) rotate(360deg);opacity:0;} }
+.cell.ougi-effect::after { content:""; position:absolute; inset:-16px; border-radius:50%; background:radial-gradient(circle, rgba(255,220,50,1), rgba(255,100,0,0.9), rgba(200,0,200,0.5), transparent 65%); animation:ougiFlash 0.7s ease-out; pointer-events:none; z-index:9; box-shadow:0 0 40px rgba(255,200,0,0.9); }
+@keyframes ougiFlash { 0%{transform:scale(0.05) rotate(0deg);opacity:1;filter:brightness(3);} 40%{transform:scale(2) rotate(270deg);opacity:1;filter:brightness(2);} 100%{transform:scale(3.5) rotate(540deg);opacity:0;filter:brightness(1);} }
+.cell.death-effect { animation:deathShake 0.5s ease-in-out; }
+.cell.death-effect::after { content:"☠"; position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:28px; animation:deathPop 0.6s ease-out forwards; pointer-events:none; z-index:10; }
+@keyframes deathShake { 0%,100%{transform:translate(0,0) scale(1)} 15%{transform:translate(-8px,5px) scale(1.1)} 30%{transform:translate(8px,-5px) scale(0.9)} 50%{transform:translate(-5px,3px) scale(1.05)} 70%{transform:translate(5px,-3px) scale(0.95)} }
+@keyframes deathPop { 0%{opacity:1;transform:scale(0.5);} 40%{opacity:1;transform:scale(1.6);} 100%{opacity:0;transform:scale(2) translateY(-20px);} }
+/* ダメージ・回復数字 */
+.fx-num { position:fixed; pointer-events:none; z-index:9999; font-weight:900; font-family:'Meiryo',sans-serif; user-select:none; animation:numFloat 1.1s cubic-bezier(0.17,0.84,0.44,1) forwards; }
+@keyframes numFloat { 0%{transform:translateY(0) scale(1.5);opacity:1;} 30%{transform:translateY(-30px) scale(1.1);opacity:1;} 100%{transform:translateY(-85px) scale(0.7);opacity:0;} }
+.fx-num.dmg { font-size:36px; color:#ff2222; text-shadow:0 0 12px #ff0000,0 0 24px #ff4400,2px 2px 0 #000,-1px -1px 0 #000; }
+.fx-num.dmg.big { font-size:52px; color:#ff6600; text-shadow:0 0 16px #ffaa00,0 0 32px #ff4400,3px 3px 0 #000; animation-duration:1.4s; }
+.fx-num.heal { font-size:30px; color:#44ff88; text-shadow:0 0 10px #00ff66,0 0 20px #00cc44,2px 2px 0 #004400; }
+.fx-num.miss { font-size:26px; color:#aaaaaa; text-shadow:1px 1px 0 #000; }
+/* スクリーンフラッシュ */
+.fx-flash { position:fixed; top:0; left:0; width:100vw; height:100vh; pointer-events:none; z-index:9990; animation:screenFade 0.4s ease-out forwards; }
+@keyframes screenFade { 0%{opacity:1;} 100%{opacity:0;} }
+/* スキル発動オーラ */
+.fx-aura { position:fixed; pointer-events:none; z-index:9995; border-radius:50%; animation:auraExpand 0.65s ease-out forwards; }
+@keyframes auraExpand { 0%{transform:scale(0.1);opacity:0.9;} 60%{transform:scale(1.4);opacity:0.7;} 100%{transform:scale(2.2);opacity:0;} }
+/* エフェクト画像オーバーレイ */
+.fx-img { position:fixed; pointer-events:none; z-index:9996; object-fit:contain; }
+.fx-img.fx-pop { animation:fxPop 0.65s ease-out forwards; }
+.fx-img.fx-pop-big { animation:fxPop 0.85s ease-out forwards; }
+.fx-img.fx-circle { animation:fxCircle 0.7s ease-out forwards; }
+.fx-img.fx-slash-anim { animation:fxSlash 0.45s ease-out forwards; }
+@keyframes fxPop { 0%{transform:scale(0.2) rotate(-15deg);opacity:1;filter:brightness(2);} 50%{transform:scale(1.3) rotate(5deg);opacity:1;filter:brightness(1.5);} 100%{transform:scale(1.8) rotate(0deg);opacity:0;filter:brightness(1);} }
+@keyframes fxCircle { 0%{transform:scale(0.3);opacity:0.9;} 60%{transform:scale(1.2);opacity:0.8;} 100%{transform:scale(1.6);opacity:0;} }
+@keyframes fxSlash { 0%{transform:scaleX(0.1) translateY(0);opacity:1;} 50%{transform:scaleX(1.2) translateY(-4px);opacity:1;} 100%{transform:scaleX(1.5) translateY(-8px);opacity:0;} }
+.cell .slash { position:absolute; top:0; left:0; width:100%; height:100%; background:repeating-linear-gradient(45deg, transparent, transparent 3px, rgba(255,100,100,0.3) 3px, rgba(255,100,100,0.3) 6px); pointer-events:none; }
+
+.unit {
+  width:90%; height:90%; border-radius:6px; display:flex; flex-direction:column;
+  align-items:center; justify-content:flex-end; font-size:11px; font-weight:bold;
+  color:#fff; padding:2px; position:relative; border:2px solid transparent;
+  text-shadow:0 1px 2px rgba(0,0,0,0.8); overflow:hidden;
+}
+.unit.p1:not(.has-face) { background:linear-gradient(135deg,#3a7fbd,#2557a0); border-color:#5ec2ff; }
+.unit.p2:not(.has-face) { background:linear-gradient(135deg,#bd4a3a,#a02a25); border-color:#ff7a5c; }
+.unit.has-face.p1 { background:#2557a0; border-color:#5ec2ff; }
+.unit.has-face.p2 { background:#a02a25; border-color:#ff7a5c; }
+.unit .unit-face { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; object-position:center 12%; border-radius:4px; z-index:0; }
+.unit.p2.has-face .unit-face { object-fit:contain; object-position:center center; }
+.unit .unitshade { position:absolute; inset:0; z-index:1; pointer-events:none; border-radius:4px; }
+.unit.p1.has-face .unitshade { background:linear-gradient(to bottom, rgba(58,127,189,0.2), rgba(37,87,160,0.88)); }
+.unit.p2.has-face .unitshade { background:linear-gradient(to bottom, rgba(189,74,58,0.2), rgba(160,42,37,0.88)); }
+.unit .uname, .unit .hpbar { position:relative; z-index:2; width:100%; }
+.unit .ougi, .unit .effects { z-index:2; }
+.unit.acted { filter:brightness(0.5) saturate(0.5); }
+.unit.dead { opacity:0.3; }
+.unit.current { box-shadow:0 0 0 2px var(--gold), 0 0 10px var(--gold); }
+.unit .uname { font-size:10px; line-height:1.15; text-align:center; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.unit .hpbar { width:100%; height:4px; background:#300; margin-top:3px; border-radius:2px; overflow:hidden; }
+.unit .hpbar > div { height:100%; background:var(--green); transition:width 0.3s; }
+.unit .ougi { position:absolute; top:-2px; right:-2px; background:var(--gold); color:#000; font-size:9px; padding:1px 4px; border-radius:3px; font-weight:bold; }
+.unit .effects { position:absolute; bottom:-2px; left:0; right:0; display:flex; justify-content:center; gap:1px; font-size:9px; }
+.unit .eff { background:rgba(0,0,0,0.7); padding:0 2px; border-radius:2px; }
+
+#unit-info { background:var(--panel); padding:12px 14px; border-radius:8px; font-size:14px; line-height:1.45; }
+#unit-info .info-portrait { width:100%; max-height:160px; object-fit:cover; object-position:center 15%; border-radius:8px; display:block; margin-bottom:10px; background:#1a1d35; }
+#unit-info .bar { height:10px; background:#300; border-radius:4px; margin:4px 0; overflow:hidden; }
+#unit-info .skill-desc { font-size:12px; color:var(--dim); margin-top:3px; line-height:1.45; }
+#unit-info .skill-name { color:var(--gold); font-weight:bold; margin-top:8px; font-size:13px; }
+#unit-info .info-section { margin-top:8px; padding-top:7px; border-top:1px solid #323a68; }
+#unit-info .info-label { color:var(--gold); font-weight:bold; font-size:13px; }
+#unit-info .info-name { font-weight:bold; margin-top:2px; font-size:13px; }
+#battle-basic-info .stat-row { display:flex; flex-wrap:wrap; gap:6px 10px; align-items:center; margin-top:6px; }
+#battle-basic-info .stat-pill { display:inline-flex; align-items:center; gap:3px; white-space:nowrap; }
+.ui-icon { width:18px; height:18px; object-fit:contain; flex:0 0 18px; vertical-align:-4px; }
+
+#action-panel { display:none !important; background:var(--panel); padding:12px; border-radius:8px; }
+#action-panel .actions { display:flex; flex-direction:column; gap:6px; }
+#action-panel .actions button { font-size:14px; padding:8px 12px; }
+
+#log { background:#0a0c1a; padding:10px 12px; border-radius:8px; font-size:13px; flex:1; min-height:120px; max-height:none; overflow-y:auto; font-family:'Consolas','Meiryo',monospace; line-height:1.55; }
+
+/* 盤の横に出る操作・情報ポップ */
+#battle-float { position:fixed;
+  z-index:130;
+  min-width:220px;
+  max-width:min(340px, calc(100vw - 24px));
+  background:var(--panel);
+  border:2px solid var(--accent);
+  border-radius:10px;
+  padding:12px 14px;
+  box-shadow:0 10px 36px rgba(0,0,0,0.55);
+  font-size:14px;
+  line-height:1.45;
+  max-height:min(86vh, 640px);
+  overflow-y:auto;
+  display:none;
+  pointer-events:auto;
+}
+#battle-float.visible { display:block; }
+#battle-float .bf-title { font-size:16px; font-weight:bold; color:var(--gold); margin:0 0 6px 0; }
+#battle-float .bf-row { font-size:13px; margin:3px 0; color:var(--dim); }
+#battle-float .bf-ap { font-size:15px; color:var(--gold); font-weight:bold; }
+#battle-float .bf-actions { display:flex; flex-direction:column; gap:6px; margin-top:10px; }
+#battle-float .bf-actions button { font-size:14px; padding:9px 12px; width:100%; }
+#battle-float .bf-act-group { display:flex; flex-direction:column; gap:2px; align-items:stretch; }
+#battle-float .bf-act-desc { font-size:11px; line-height:1.35; color:var(--dim); margin:0 0 6px 0; padding:0 2px 0 6px; border-left:2px solid #3a4870; white-space:normal; word-break:break-word; }
+#battle-float .bf-act-desc strong { color:var(--text); font-size:11px; display:block; margin-bottom:2px; }
+#battle-float .bf-hint { font-size:13px; color:#a8d4ff; margin-bottom:8px; }
+#battle-float .bf-close { position:absolute; top:6px; right:8px; background:transparent; border:none; color:var(--dim); font-size:20px; line-height:1; cursor:pointer; padding:4px; }
+#battle-float .bf-close:hover { color:var(--text); }
+
+#log .line { margin-bottom:2px; }
+#log .line.info { color:var(--dim); }
+#log .line.damage { color:#ff9080; }
+#log .line.heal { color:#90ff90; }
+#log .line.skill { color:#90d0ff; }
+#log .line.ougi { color:var(--gold); font-weight:bold; }
+#log .line.turn { color:#fff; background:rgba(255,255,255,0.1); padding:2px 4px; border-radius:3px; }
+
+#dir-panel { display:none; position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:var(--panel); padding:16px; border-radius:8px; box-shadow:0 8px 24px rgba(0,0,0,0.5); z-index:100; }
+#dir-panel.active { display:block; }
+#dir-panel .dir-grid { display:grid; grid-template-columns:repeat(3,60px); grid-template-rows:repeat(3,60px); gap:4px; }
+#dir-panel .dir-btn { display:flex; align-items:center; justify-content:center; font-size:24px; background:var(--panel2); cursor:pointer; border-radius:4px; border:none; color:var(--text); }
+#dir-panel .dir-btn:hover { background:var(--accent); }
+#dir-panel .empty { visibility:hidden; }
+
+#modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:200; align-items:center; justify-content:center; }
+#modal.active { display:flex; }
+#modal .box { background:var(--panel); padding:24px 32px; border-radius:8px; text-align:center; max-width:500px; }
+#modal .box h2 { color:var(--gold); }
+
+.tooltip { position:fixed; background:rgba(10,10,30,0.97); border:1px solid var(--accent); padding:10px 12px; border-radius:8px; font-size:13px; max-width:min(360px, 92vw); z-index:140; pointer-events:none; display:none; line-height:1.5; }
+.tooltip.active { display:block; }
+.tooltip .t-name { font-weight:bold; color:var(--gold); }
+.tooltip .t-sec { margin-top:4px; }
+.tooltip .t-label { color:#90d0ff; font-weight:bold; }
+
+@media (orientation: landscape) and (max-height: 520px),
+       (orientation: landscape) and (max-width: 950px) {
+  html, body { width:100%; min-height:100dvh; overflow:hidden; font-size:13px; }
+  #app { max-width:none; width:100vw; height:100dvh; margin:0; padding:4px; overflow:hidden; background:#07090f url("img/素材/ChatGPT Image 2026年5月1日 21_44_50.png?v=20260501") center/cover no-repeat; }
+  #app:has(#screen-title.active),
+  #app:has(#screen-team.active),
+  #app:has(#screen-placement.active) { background:#07090f url("img/素材/ChatGPT Image 2026年5月1日 21_44_50.png?v=20260501") center/cover no-repeat; }
+  button { min-height:28px; padding:4px 8px; font-size:12px; }
+
+  #screen-title { height:100dvh; padding-top:8vh; overflow:auto; background:none; }
+  #screen-title::before { display:none; }
+  #screen-title h1 { font-size:clamp(22px, 5vw, 32px); position:relative; z-index:1; opacity:1; width:auto; height:auto; }
+  #screen-title .buttons { margin-top:3vh; gap:clamp(8px, 1.5vw, 16px); position:relative; z-index:1; }
+  #screen-title .buttons button { min-width:clamp(100px, 18vw, 170px); min-height:clamp(34px, 6vh, 48px); background-size:100% 100%; background-color:rgba(80,20,14,0.9); border:1px solid rgba(236,184,87,0.7); color:#fff; font-size:clamp(11px, 1.4vw, 14px); }
+  #screen-title .buttons button:nth-child(1),
+  #screen-title .buttons button:nth-child(2),
+  #screen-title .buttons button:nth-child(3) { background-image:none; }
+  #screen-title .note { margin-top:2vh; font-size:10px; position:relative; z-index:1; opacity:1; width:auto; height:auto; }
+
+  #screen-team > div { max-width:none !important; height:100dvh; padding:8px !important; overflow:auto; }
+  .team-card { width:108px; }
+  .team-card .tc-body { padding:6px; }
+  .team-card .tc-name { font-size:12px; }
+  .team-card .tc-role,
+  .team-card .tc-stats { font-size:10px; }
+
+  #screen-placement.screen.active { height:100dvh; }
+  #screen-placement .pstage { --place-left-gap:0px; --place-info-w:clamp(150px, 22vw, 190px); padding:1mm; }
+  #screen-placement .place-side { flex-basis:clamp(210px, 28vw, 240px); padding:6px; gap:5px; }
+  #screen-placement .place-side h2 { font-size:14px; }
+  #screen-placement .guide { padding:5px 6px; font-size:10px; line-height:1.35; }
+  #screen-placement .guide .step { width:18px; height:18px; line-height:18px; margin-right:4px; }
+  #screen-placement .bench h3 { font-size:12px; margin-bottom:4px; }
+  #screen-placement .bench .slot { padding:5px 6px; margin-bottom:4px; font-size:11px; }
+  #screen-placement .bench-face { width:36px; height:48px; }
+  #screen-placement .bench-row { gap:6px; }
+  #screen-placement #place-info { padding:6px; font-size:10px; line-height:1.35; }
+  #screen-placement #place-info .info-portrait { max-height:96px; }
+  #screen-placement #place-info .info-label,
+  #screen-placement #place-info .info-name { font-size:10px; }
+  .board.placement-board {
+    width:calc(100dvh - 2mm);
+    height:calc(100dvh - 2mm);
+    max-width:calc(100dvh - 2mm);
+    max-height:calc(100dvh - 2mm);
+  }
+
+  #screen-battle.screen.active { height:100dvh; width:100vw; }
+  #battle-sidebar {
+    --battle-side-w:clamp(300px, 38vw, 360px);
+    gap:5px;
+    padding:5px;
+    font-size:11px;
+    line-height:1.3;
+  }
+  #battle-info-panel, #battle-action-panel { gap:5px; max-height:calc(100dvh - 10px); height:calc(100dvh - 10px); }
+  #battle-action-panel { overflow-y:auto; }
+  #battle-info-panel { }
+  #battle-sidebar .turn-meta { font-size:12px; }
+  #battle-sidebar #turn-hint,
+  #battle-sidebar #unit-info,
+  #battle-sidebar #battle-basic-info { font-size:10px; }
+  #battle-sidebar #battle-basic-info { padding:4px 0 5px; }
+  #battle-sidebar #battle-basic-info .info-portrait { max-height:76px; margin-bottom:4px; }
+  #battle-sidebar #battle-actions { gap:0; padding-top:5px; }
+  #battle-sidebar #battle-actions button { min-height:76px; padding:8px 8px 8px 72px; font-size:11px; }
+  #battle-sidebar #battle-actions .side-hint { font-size:10px; }
+  #battle-sidebar #battle-actions .side-desc { font-size:9px; line-height:1.25; }
+  #battle-sidebar #log { font-size:10px; }
+  #battle-sidebar .end-turn-btn { padding:7px 6px; font-size:13px; }
+  #battle-board-wrap {
+    --battle-board-base:min(calc(100dvh - 2mm), calc(100vw - clamp(300px, 38vw, 360px) - 2mm));
+    --battle-left-gap:1mm;
+    height:100dvh;
+    padding:1mm;
+  }
+  #screen-battle #board.board-battle {
+    width:min(calc(100dvh - 2mm), calc(100vw - clamp(300px, 38vw, 360px) - 2mm));
+    height:min(calc(100dvh - 2mm), calc(100vw - clamp(300px, 38vw, 360px) - 2mm));
+  }
+  #screen-battle #board.board-battle .unit .uname { font-size:clamp(6px, 1.4vmin, 9px); }
+  .unit .ougi { font-size:9px; }
+}
+
+@media (orientation: portrait) and (max-width: 700px) {
+  html, body { width:100%; min-height:100dvh; overflow:auto; font-size:14px; }
+  #app { max-width:none; width:100%; min-height:100dvh; margin:0; padding:6px; overflow:auto; }
+
+  /* タイトル画面 縦向き */
+  #app:has(#screen-title.active) { padding:0; }
+  #screen-title { padding-top:12vh; overflow:auto; }
+  #screen-title h1 { font-size:clamp(28px, 8vw, 44px); }
+  #screen-title .buttons { flex-direction:column; align-items:center; gap:10px; margin-top:4vh; }
+  #screen-title .buttons button { width:72vw; min-width:0; max-width:300px; min-height:44px; font-size:16px; }
+  #screen-title .note { font-size:12px; margin-top:3vh; padding:0 12px; }
+
+  #screen-team > div { max-width:none !important; padding:10px !important; }
+  #team-cards { justify-content:flex-start !important; gap:10px !important; }
+  .team-card { width:calc(50vw - 18px); min-width:150px; }
+  .team-card .tc-portrait { height:20vh; aspect-ratio:auto; object-fit:cover; object-position:center 12%; }
+  .team-card .tc-portrait.tc-char-11 { object-position:center 12%; }
+  .team-card .tc-portrait.tc-char-4,
+  .team-card .tc-portrait.tc-char-8,
+  .team-card .tc-portrait.tc-char-22 { object-position:center 22%; }
+  .team-card .tc-portrait.tc-char-5,
+  .team-card .tc-portrait.tc-char-16,
+  .team-card .tc-portrait.tc-char-17,
+  .team-card .tc-portrait.tc-char-21,
+  .team-card .tc-portrait.tc-char-23 { object-position:center 16%; }
+  .team-card .tc-body { padding:6px 8px 8px; }
+  #team-actions {
+    gap:12px !important;
+    margin-top:16px !important;
+  }
+  #team-actions button {
+    min-width:calc(50vw - 18px);
+    min-height:52px;
+    padding:12px 14px;
+    font-size:16px;
+    font-weight:bold;
+  }
+
+  #app:has(#screen-placement.active) { height:auto; min-height:100dvh; overflow:auto; }
+  #screen-placement.screen.active { height:auto; max-height:none; overflow:visible; }
+  #screen-placement .pstage {
+    --place-left-gap:0px;
+    --place-info-w:auto;
+    display:flex;
+    flex-direction:column;
+    height:auto;
+    min-height:100dvh;
+    overflow:visible;
+    padding:1mm;
+  }
+  #screen-placement .pstage::before { display:none; }
+  #screen-placement .place-main {
+    width:100%;
+    height:auto;
+    justify-content:center;
+    overflow:visible;
+  }
+  .board.placement-board {
+    width:min(calc(100vw - 2mm), calc(100dvh - 2mm));
+    height:min(calc(100vw - 2mm), calc(100dvh - 2mm));
+    max-width:calc(100vw - 2mm);
+    max-height:none;
+  }
+  #screen-placement .place-side,
+  #screen-placement .place-info-side {
+    flex:0 0 auto;
+    width:100%;
+    height:auto;
+    max-height:none;
+    border-left:none;
+    border-top:2px solid #2a3360;
+  }
+  #screen-placement .bench {
+    max-height:10.5dvh;
+    overflow-y:auto;
+  }
+  #screen-placement #place-info {
+    max-height:46dvh;
+    display:grid;
+    grid-template-columns:86px 1fr;
+    align-items:start;
+    gap:4px 8px;
+  }
+  #screen-placement #place-info .info-portrait {
+    width:86px;
+    max-height:86px;
+    margin:0;
+    grid-row:1 / 4;
+    object-fit:cover;
+  }
+  #screen-placement #place-info > .info-section { grid-column:1 / -1; }
+
+  body:has(#screen-battle.active) {
+    overflow:auto;
+  }
+  #app:has(#screen-battle.active) {
+    height:auto;
+    min-height:100dvh;
+    overflow:auto;
+  }
+  #screen-battle.screen.active {
+    height:auto;
+    max-height:none;
+    overflow:visible;
+    flex-direction:column;
+  }
+  #battle-layout {
+    display:flex;
+    flex-direction:column;
+    width:100%;
+  }
+  #battle-board-wrap {
+    order:1;
+    width:100%;
+    height:auto;
+    justify-content:center;
+    padding:1mm;
+  }
+  #screen-battle #board.board-battle {
+    width:min(calc(100vw - 2mm), calc(100dvh - 2mm));
+    height:min(calc(100vw - 2mm), calc(100dvh - 2mm));
+  }
+  #battle-sidebar {
+    order:2;
+    width:100%;
+    flex:0 0 auto;
+    --battle-side-w:auto;
+  }
+  #battle-sidebar {
+    display:flex;
+    flex-direction:column;
+  }
+  #battle-action-panel {
+    order:1;
+  }
+  #battle-info-panel {
+    order:2;
+  }
+  #battle-sidebar #battle-basic-info {
+    display:grid;
+    grid-template-columns:86px 1fr;
+    align-items:center;
+    gap:8px;
+    padding:8px;
+  }
+  #battle-sidebar #battle-basic-info .info-portrait {
+    width:86px;
+    max-height:86px;
+    margin:0;
+    grid-row:1 / 6;
+  }
+  #battle-sidebar #battle-basic-info > :not(.info-portrait) {
+    grid-column:2;
+  }
+  #battle-sidebar #battle-basic-info .battle-move-range {
+    display:none;
+  }
+  #battle-sidebar #battle-actions button:nth-of-type(1) {
+    justify-content:flex-start;
+    padding-top:calc(6px + 1.2em);
+    padding-left:calc(118px + 2em);
+  }
+  #battle-sidebar #battle-actions button:nth-of-type(2),
+  #battle-sidebar #battle-actions button:nth-of-type(3) {
+    padding-left:calc(118px + 2em);
+  }
+  #battle-sidebar #battle-actions > .side-desc {
+    padding-left:2em;
+  }
+  #battle-info-panel,
+  #battle-action-panel {
+    max-height:none;
+  }
+  #battle-info-panel {
+    height:auto;
+  }
+  #battle-sidebar #log {
+    flex:0 0 auto;
+    max-height:22dvh;
+    overflow-y:auto;
+    padding-top:calc(28px + 1.4em);
+    padding-left:calc(14px + 1em);
+  }
+}
+</style>
+</head>
+<body>
+<audio id="bgm" src="Deckhand Anthem.mp3" loop preload="auto"></audio>
+<div id="bgm-ctrl" style="
+  position:fixed;bottom:12px;right:12px;z-index:9999;
+  display:flex;align-items:center;gap:6px;
+">
+  <div id="vol-wrap" style="
+    display:none;align-items:center;gap:4px;
+    background:rgba(0,0,0,0.7);border:1px solid rgba(196,142,70,0.5);
+    border-radius:20px;padding:4px 10px;
+  ">
+    <span style="color:#c48e46;font-size:13px;">🔈</span>
+    <input id="vol-slider" type="range" min="0" max="100" value="45"
+      oninput="setBGMVol(this.value)"
+      style="width:80px;accent-color:#c48e46;cursor:pointer;">
+    <span style="color:#c48e46;font-size:13px;">🔊</span>
+  </div>
+  <button id="bgm-btn" onclick="toggleBGM()" title="BGM ON/OFF" style="
+    background:rgba(0,0,0,0.6);border:1px solid rgba(196,142,70,0.6);
+    color:#c48e46;border-radius:50%;width:36px;height:36px;font-size:18px;
+    cursor:pointer;line-height:1;padding:0;
+  ">🔊</button>
+</div>
+<div id="app">
+
+  <!-- TITLE -->
+  <div id="screen-title" class="screen active">
+    <h1>ターン制マスバトル</h1>
+    <div class="buttons">
+      <button class="primary" onclick="startGame('pvp')">ローカル2人対戦</button>
+      <button class="primary" onclick="startGame('ai')">vs CPU</button>
+      <button onclick="showHelp()">ルール説明</button>
+    </div>
+    <div class="note">
+      盤面 8×8 / 5体編成 / 自軍は下側、敵軍は上側<br>
+      各ターン開始時に各キャラ +1AP<br>
+      移動(無料/1回) と 攻撃[1AP] / スキル[2AP] / 奥義[3AP] のいずれか1回<br>
+      相手チームを全滅させたら勝利
+    </div>
+  </div>
+
+  <!-- TEAM SELECT -->
+  <div id="screen-team" class="screen">
+    <div style="max-width:900px;margin:0 auto;padding:16px 12px">
+      <div class="flex center" style="justify-content:space-between;margin-bottom:14px">
+        <h2 id="team-title" style="margin:0">プレイヤー1 チーム確認</h2>
+        <button onclick="goTitle()">タイトルへ</button>
+      </div>
+      <div id="team-cards" style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center"></div>
+      <div id="team-actions" style="margin-top:18px;display:flex;gap:10px;align-items:center;flex-wrap:wrap"></div>
+    </div>
+  </div>
+
+  <!-- PLACEMENT -->
+  <div id="screen-placement" class="screen">
+    <div class="pstage">
+      <div class="place-main">
+        <div id="place-board"></div>
+      </div>
+      <aside class="place-side">
+        <h2 id="place-title">プレイヤー1 配置</h2>
+        <div class="place-side-actions">
+          <button onclick="goTitle()">タイトルへ</button>
+          <button id="place-confirm" class="primary" onclick="confirmPlacement()" disabled>開始</button>
+        </div>
+        <div class="guide">
+          <span class="step">1</span>右のリストからキャラをクリックして選択<br>
+          <span class="step">2</span>自陣エリア<span style="color:#7ab0ff">（青く光るマス）</span>をクリックして配置<br>
+          <span class="step">3</span>配置済みキャラをクリックで置き直し
+        </div>
+        <div class="bench" id="bench"></div>
+      </aside>
+      <aside class="place-info-side">
+        <div id="place-info"><span class="dim">キャラをクリックすると情報を表示</span></div>
+      </aside>
+    </div>
+  </div>
+
+  <!-- BATTLE -->
+  <div id="screen-battle" class="screen">
+    <div id="battle-layout">
+      <aside id="battle-sidebar">
+        <div id="battle-action-panel">
+          <div class="dim" id="turn-hint">行動するユニットを選択</div>
+          <div id="battle-basic-info">ユニットをクリック</div>
+          <div id="battle-actions"></div>
+          <div id="unit-info" style="font-size:12px">スキル詳細</div>
+        </div>
+        <div id="battle-info-panel">
+          <div class="turn-meta"><span id="turn-num">1</span>ターン目 / <span id="turn-side" class="side p1">プレイヤー1</span>の手番</div>
+          <div id="log"></div>
+          <button type="button" class="end-turn-btn primary" onclick="endPlayerTurn()">ターン終了</button>
+        </div>
+      </aside>
+      <div id="battle-board-wrap">
+        <div id="board"></div>
+      </div>
+    </div>
+    <div id="action-panel" style="display:none">
+      <h3 id="action-title">行動選択</h3>
+      <div class="actions" id="action-list"></div>
+    </div>
+  </div>
+
+  <!-- RESULT -->
+  <div id="screen-result" class="screen" style="text-align:center; padding:60px">
+    <h1 id="result-text"></h1>
+    <div style="margin-top:24px"><button class="primary" onclick="goTitle()">タイトルに戻る</button></div>
+  </div>
+</div>
+
+<div id="battle-float"></div>
+<div id="dir-panel"><h3>方向を選択</h3><div class="dir-grid" id="dir-grid"></div><div style="text-align:center;margin-top:8px"><button onclick="battleCancelSelection()">キャンセル</button></div></div>
+<div id="modal"><div class="box"><h2 id="modal-title"></h2><div id="modal-body"></div><div style="margin-top:16px"><button class="primary" onclick="closeModal()">OK</button></div></div></div>
+<div class="tooltip" id="tooltip"></div>
+
+<script>
+// ==================================================
+// CHARACTER DATA
+// ==================================================
+// Affiliations for color-coding
+const AFFIL = { SAPPORO:'sapporo', HAKODATE:'hakodate', SISOKYO:'sisokyo', FREE:'free' };
+
+const CHARACTERS = [
+  { id:1, name:'沼端俊樹', affil:'札幌・第26小隊', team:AFFIL.SAPPORO, role:'フロント', hp:12, move:1, range:[1,1], quote:'「何を守る？全部だろ」',
+    skill:{ name:'俺が守ってやる', desc:'他の味方と隣接時、代わりにダメージを受ける（範囲攻撃時除く、パッシブ）', kind:'passive' },
+    ougi:{ name:'厄災の太刀・偽', cost:5, desc:'前方縦2マスに範囲3ダメージ、HP4回復、HP1耐え付与(1回のみ)', kind:'selectDirection' },
+    sense:{ name:'ヒーローへの切符', desc:'偶数ターンに受けるダメージ-1。3回まで蓄積。' } },
+  { id:2, name:'晩生朔', affil:'札幌・第26小隊', team:AFFIL.SAPPORO, role:'ミドルアタッカー', hp:9, move:1, range:[1,2], quote:'「君は、僕なんだろう？」',
+    skill:{ name:'天和', desc:'周囲2マス以内の敵1体に2ダメージ、HP2回復', kind:'selectEnemy', rng:[1,2] },
+    ougi:{ name:'厄災の太刀', cost:5, desc:'周囲2マス以内の敵に3ダメージ、1T重症(移動毎1ダメ)', kind:'auto', rng:[1,2] },
+    sense:{ name:'ヘイト', desc:'単体攻撃を受ける時、強制的に対象となる(ヘイト)' } },
+  { id:3, name:'鵜苫翡翠', affil:'札幌・第26小隊', team:AFFIL.SAPPORO, role:'ミドルアタッカー', hp:7, move:1, range:[2,3], quote:'「佳境はこれを以って終える」',
+    skill:{ name:'石は岩をも砕く', desc:'2〜3マス以内の敵1体に3ダメージ、潜伏獲得', kind:'selectEnemy', rng:[2,3] },
+    ougi:{ name:'文字通りの横槍', cost:5, desc:'周囲2マス以内の敵全てに2ダメージ、2T刺突付与', kind:'auto', rng:[1,2] },
+    sense:{ name:'貴方とならどこまでも', desc:'沼端俊樹と周囲3マス以内のときスキルのCTなし' } },
+  { id:4, name:'佐久遊歩', affil:'札幌・第26小隊', team:AFFIL.SAPPORO, role:'サポーター', hp:5, move:1, range:[1,2], quote:'「みんながいるから、怖くない」',
+    skill:{ name:'援護するね！', desc:'全味方にHP回復2、次ターンも1回復', kind:'auto_allies' },
+    ougi:{ name:'悩殺スマイル', cost:5, desc:'男性味方1体HP2回復、被ダメ-3バフ付与', kind:'selectMaleAlly' },
+    sense:{ name:'私は長女なんですから！', desc:'晩生朔と出撃時、対象への効果全て+1' } },
+  { id:5, name:'七重浜円', affil:'札幌・第26小隊', team:AFFIL.SAPPORO, role:'サイドアタッカー', hp:7, move:2, range:[1,1], quote:'「あかん、楽しすぎて……♡」',
+    skill:{ name:'千突破', desc:'敵に3ダメージ、更に移動可能', kind:'selectEnemy', rng:[1,1] },
+    ougi:{ name:'ブリガンテ', cost:5, desc:'HP2消費。攻撃後再行動不可、与ダメ+3。次の被弾はコイン表で相殺', kind:'selfBuff' },
+    sense:{ name:'うちが見つけた獲物やぞッ！', desc:'味方と同じ敵を攻撃時、2ダメの追撃(簡略化:攻撃時+1ダメ)' } },
+  { id:6, name:'桐生呼人', affil:'札幌・第2小隊', team:AFFIL.SAPPORO, role:'フロント', hp:10, move:1, range:[1,1], quote:'「呼人あるところに、勝利あり」',
+    skill:{ name:'ザクザクと〜刻んで〜行く〜♪', desc:'敵に2ダメ、自身以外味方HP2回復、コイン表で再行動', kind:'selectEnemy', rng:[1,1] },
+    ougi:{ name:'厄災の太刀・表', cost:5, desc:'前方縦横2マスに3ダメ範囲。敵2体以上で再行動', kind:'selectDirection' },
+    sense:{ name:'知性への叛逆', desc:'HP4以下で移動3、射程2、全与ダメ+2' } },
+  { id:7, name:'茅沼藻琴', affil:'札幌・第2小隊', team:AFFIL.SAPPORO, role:'ロングアタッカー', hp:6, move:1, range:[2,4], quote:'「桐生くんを援護するわ」',
+    skill:{ name:'耐えられるかしら？', desc:'2〜3マス以内の敵に3ダメ(貫通)、周囲2マス味方有で+1ダメ', kind:'selectEnemy', rng:[2,3] },
+    ougi:{ name:'千の刃は雨となり', cost:5, desc:'選択範囲の敵味方に4ダメ(自身除く) / 簡略:周囲2マス', kind:'auto', rng:[1,2] },
+    sense:{ name:'嗅覚の道標', desc:'全攻撃が曲射。周囲3マスの味方攻撃時に援護射撃1ダメ' } },
+  { id:8, name:'金華結季', affil:'札幌・第2小隊', team:AFFIL.SAPPORO, role:'サイドアタッカー', hp:5, move:2, range:[1,1], quote:'「安心しろ、この金華がついている」',
+    skill:{ name:'カッチーナ流暗殺術', desc:'周囲3マス以内の敵の隣に移動し2ダメ、負傷付与', kind:'selectEnemy', rng:[1,3] },
+    ougi:{ name:'片鱗・ユグドラシーレ', cost:5, desc:'周囲2マス味方にユグドラシル(1T被弾無効)、敵に2ダメ負傷付与', kind:'auto', rng:[1,2] },
+    sense:{ name:'カッチーナ家の末裔', desc:'奇数ターンに潜伏状態で全攻撃無効' } },
+  { id:9, name:'鹿谷一', affil:'札幌・第1小隊', team:AFFIL.SAPPORO, role:'ウォーラー', hp:16, move:1, range:[1,1], quote:'「今夜の酒はうまそうだぜ」',
+    skill:{ name:'パーフェクトシールド', desc:'味方1体に2回まで被弾無効を付与', kind:'selectAlly', rng:[0,99] },
+    ougi:{ name:'ダンプの衝撃', cost:5, desc:'前方2マス以内に3ダメ、3マスノックバック。衝突で双方麻痺+2ダメ', kind:'selectDirection' },
+    sense:{ name:'鍛え上げられた肉体', desc:'周囲3マス以内のダメージを自身が受ける (簡略化:隣接のみ代替)' } },
+  { id:10, name:'静狩玲', affil:'札幌・第1小隊', team:AFFIL.SAPPORO, role:'サイドアタッカー', hp:8, move:2, range:[1,1], quote:'「先輩と並んで戦いたいから」',
+    skill:{ name:'厄災の太刀・恋', desc:'周囲2マス以内の敵に2ダメ、1T移動不可', kind:'selectEnemy', rng:[1,2] },
+    ougi:{ name:'ベルセルク！', cost:5, desc:'一番近い敵の隣に移動、5ダメ、再行動可能', kind:'auto_self' },
+    sense:{ name:'極限反射', desc:'被ダメ時コイン表で回避' } },
+  { id:11, name:'東山功', affil:'札幌・第1小隊', team:AFFIL.SAPPORO, role:'サポーター', hp:8, move:1, range:[1,1], quote:'「不可能なんて誰が言ったんです？」',
+    skill:{ name:'見学専門', desc:'直近発動の敵スキル/奥義を使用(簡略化:敵1体に3ダメ)', kind:'selectEnemy', rng:[1,3] },
+    ougi:{ name:'才覚の章', cost:5, desc:'全味方の与ダメ+3 (1ターン)', kind:'auto_allies' },
+    sense:{ name:'帝国の流血', desc:'隣接味方をHP2回復、隣接敵に2ダメ(ターン開始時)' } },
+  { id:12, name:'本輪西夏', affil:'札幌・第1小隊', team:AFFIL.SAPPORO, role:'サポーター', hp:7, move:1, range:[1,2], quote:'「お姉さんが相手になるよう」',
+    skill:{ name:'少し痛いかもね〜', desc:'前方2マス以内の敵に3ダメ', kind:'selectDirection' },
+    ougi:{ name:'分解と再構築', desc:'味方1体を初期状態にリセット', cost:5, kind:'selectAlly', rng:[0,99] },
+    sense:{ name:'神の冒涜', desc:'バフ・デバフを受けない' } },
+  { id:13, name:'大岸綾', affil:'札幌・第1小隊', team:AFFIL.SAPPORO, role:'オールラウンダー', hp:7, move:1, range:[1,4], quote:'「どこぞの雑魚も綾の前ではただの虫っすよ」',
+    skill:{ name:'ノーヴェティーロ', desc:'前方5マス先の敵に3ダメ(貫通)', kind:'selectDirection' },
+    ougi:{ name:'綾は……もう一人じゃないっ！', cost:5, desc:'周囲2マス内敵1体に4ダメ、1T麻痺', kind:'selectEnemy', rng:[1,2] },
+    sense:{ name:'約束された弾丸', desc:'HP4以下で全ダメ+2' } },
+  { id:14, name:'絵笛理多', affil:'函館・第7小隊', team:AFFIL.HAKODATE, role:'サイドアタッカー', hp:8, move:1, range:[1,1], quote:'「函館の英雄？それなら今、目の前にいるよ」',
+    skill:{ name:'見切れるかな？', desc:'コイン判定：表→周囲2マス味方HP3回復、裏→周囲2マス敵に3ダメ', kind:'auto' },
+    ougi:{ name:'ヤオケシプカムイ', cost:5, desc:'任意の敵に5ダメ、自身と敵の位置交換', kind:'selectEnemy', rng:[0,99] },
+    sense:{ name:'ラッキーボーイ', desc:'ゲーム中一度だけ攻撃を無効化' } },
+  { id:15, name:'母恋聖和', affil:'函館', team:AFFIL.HAKODATE, role:'オールラウンダー', hp:10, move:1, range:[1,1], quote:'「理解し難いな。」',
+    skill:{ name:'テリトリー', desc:'任意のキャラに4ダメ', kind:'selectAny', rng:[0,99] },
+    ougi:{ name:'潜伏テスラ', cost:5, desc:'周囲2マス敵全てに2ダメ、2T移動不能', kind:'auto', rng:[1,2] },
+    sense:{ name:'ゾーン', desc:'隣接敵からの攻撃を無効' } },
+  { id:16, name:'桔梗春希', affil:'函館', team:AFFIL.HAKODATE, role:'フロント', hp:9, move:1, range:[1,1], quote:'「姫のおかげで今月もNo.1取れました」',
+    skill:{ name:'プレイボーイ', desc:'ダイス偶数→指定敵と自身HP3回復、奇数→両者4ダメ', kind:'selectEnemy', rng:[0,99] },
+    ougi:{ name:'シャンパンコール', cost:5, desc:'周囲2マス敵1体に2ダメ、自身HP全回復', kind:'selectEnemy', rng:[1,2] },
+    sense:{ name:'ラストソング', desc:'味方に女性がいる場合HPが12になる' } },
+  { id:17, name:'姫川新', affil:'函館', team:AFFIL.HAKODATE, role:'ロングアタッカー', hp:6, move:1, range:[1,2], quote:'「俺ら函館は昔からこうなのさ」',
+    skill:{ name:'荻伏流弓術', desc:'前方縦横3マス以内の敵に2ダメ(貫通)', kind:'selectDirection' },
+    ougi:{ name:'今宵もDJカリアゲ', cost:5, desc:'周囲2マス味方HP3回復、1T移動力+1', kind:'auto', rng:[1,2] },
+    sense:{ name:'カリアゲクン', desc:'フィールドにホスト(桔梗)がいるとき射程無限' } },
+  { id:18, name:'羽帯詩歌', affil:'始祖教', team:AFFIL.SISOKYO, role:'サポーター', hp:6, move:1, range:[1,1], quote:'「全ては、始祖の福音のもとに」',
+    skill:{ name:'天理を渥す', desc:'周囲1マスにキョンシー召喚(HP6)。敵は最優先でキョンシーを攻撃', kind:'selectCell', rng:[1,1] },
+    ougi:{ name:'カリスマ', cost:5, desc:'任意敵1Tを操作(簡略:移動不可+3ダメ)', kind:'selectEnemy', rng:[0,99] },
+    sense:{ name:'永遠の夜明け', desc:'戦闘不能時1度だけ最大HPで復活' } },
+  { id:19, name:'兩伞', affil:'始祖教', team:AFFIL.SISOKYO, role:'フロント', hp:9, move:1, range:[1,1], quote:'「我们在喜欢开心的事」',
+    skill:{ name:'大家好！', desc:'周囲2マス敵に3ダメ、移動可能', kind:'selectEnemy', rng:[1,2] },
+    ougi:{ name:'对不起、没事', cost:5, desc:'周囲3マス敵1体に7ダメ', kind:'selectEnemy', rng:[1,3] },
+    sense:{ name:'天神の称号', desc:'ダイス偶数で与ダメ+3、奇数で次被弾無効(ターン開始時)' } },
+  { id:20, name:'刁', affil:'始祖教', team:AFFIL.SISOKYO, role:'サイドアタッカー', hp:7, move:2, range:[1,1], quote:'「蠢材你、少来」',
+    skill:{ name:'开玩笑吗？', desc:'周囲2マス敵1体に5ダメ', kind:'selectEnemy', rng:[1,2] },
+    ougi:{ name:'给我最好的死法', cost:5, desc:'周囲3マス敵全てに4ダメ、3ターン後死亡', kind:'auto', rng:[1,3] },
+    sense:{ name:'天神の称号(反撃)', desc:'攻撃時反撃(射程無視2ダメ)' } },
+  { id:21, name:'玩步', affil:'始祖教', team:AFFIL.SISOKYO, role:'フロント', hp:8, move:2, range:[1,1], quote:'「迎えるはずのなかった夜明けは今ここに在る」',
+    skill:{ name:'人間道に生きる者たちへ', desc:'指定敵と自身1T離脱、次ターン戻って自HP3回復、敵に3ダメ(簡略:3ダメ+自2回復)', kind:'selectEnemy', rng:[1,3] },
+    ougi:{ name:'大倭の全能', cost:5, desc:'全味方HP3回復、このターン与ダメ+2', kind:'auto_allies' },
+    sense:{ name:'未来を引き寄せる力', desc:'2回までダメージ無効' } },
+  { id:22, name:'シェカ', affil:'始祖教', team:AFFIL.SISOKYO, role:'サポーター', hp:6, move:2, range:[1,1], quote:'「うぬが行くのならば、どこまでもついて行こう」',
+    skill:{ name:'陰陽返し', desc:'直近受けた敵スキルを返す、1T移動不能付与(簡略:周囲2マス敵1体に3ダメ、移動不可)', kind:'selectEnemy', rng:[1,2] },
+    ougi:{ name:'テレポート', cost:5, desc:'敵1体と味方1体を任意マスへ移動(射程無限/簡略:自身＋敵を隣接交換)', kind:'selectEnemy', rng:[0,99] },
+    sense:{ name:'玩步との絆', desc:'味方に玩步がいる場合2ターンに1度再行動' } },
+  { id:23, name:'陰陽師・詩歌', affil:'無所属', team:AFFIL.FREE, role:'ミドルアタッカー', hp:7, move:1, range:[2,2], quote:'「許し難き人間たちよ、我が裁こう」',
+    skill:{ name:'黄泉巡礼', desc:'敵2体を選択し3ダメ(射程無限/簡略:最もHPの多い2体)', kind:'auto' },
+    ougi:{ name:'ホーユウと創る理想郷', cost:5, desc:'敵1体強制退場(最もHPの多い敵を退場)', kind:'auto' },
+    sense:{ name:'迎えることのない夜明け', desc:'ゲーム開始時敵1体選択、ダメ共有(簡略:相手最高HPと共有)' } },
+  { id:24, name:'晩生朔(第1小隊)', affil:'札幌・第1小隊', team:AFFIL.SAPPORO, role:'ミドルアタッカー', hp:10, move:2, range:[1,2], quote:'「僕は寂しがり屋なんだ」',
+    skill:{ name:'眠る刃', desc:'4箇所に斬撃設置(敵が踏むと3ダメ)', kind:'placeTraps4' },
+    ougi:{ name:'厄災の太刀・裏', cost:5, desc:'周囲4マス敵1体に4ダメ、次行動時戦闘不能', kind:'selectEnemy', rng:[1,4] },
+    sense:{ name:'原初の罪', desc:'敵は朔以外を優先選択(ヘイト解除)' } },
+  { id:25, name:'大岸綾(大人)', affil:'無所属', team:AFFIL.FREE, role:'オールラウンダー', hp:8, move:2, range:[1,4], quote:'「この弾丸は、うちらの願いだ」',
+    skill:{ name:'ノーヴェティーロ', desc:'任意の敵に3ダメ(射程参照/簡略:射程無限3ダメ)', kind:'selectEnemy', rng:[0,99] },
+    ougi:{ name:'ロストイミテーション', cost:5, desc:'前方縦5マス敵1体に8ダメ、撃破時残りを他敵に振り分け', kind:'selectDirection' },
+    sense:{ name:'収束する因果', desc:'攻撃される前に先制で射程無限2ダメ' } }
+];
+
+/** キャラID 1〜N に対応する立ち絵パス（`img/portraits/01.png` 形式）。 */
+function portraitSrc(charId) {
+  if (!Number.isFinite(charId)) return '';
+  const n = Math.floor(charId);
+  if (n < 1 || n > CHARACTERS.length) return '';
+  return 'img/portraits/' + String(n).padStart(2,'0') + '.png?v=20260501';
+}
+
+// ==================================================
+// GAME STATE
+// ==================================================
+const BOARD_W = 8, BOARD_H = 8, TEAM_SIZE = 5;
+const COST_ATTACK = 1, COST_SKILL = 2, COST_OUGI = 3;
+const EMPTY = null;
+
+let state = null; // reset on new game
+
+function initState(mode) {
+  return {
+    mode, // 'pvp' or 'ai'
+    phase: 'title',
+    players: [
+      { id:0, name:'プレイヤー1', team:[], ready:false, teamRedealLeft:1, teamSwapIds:[] },
+      { id:1, name:mode==='ai'?'CPU':'プレイヤー2', team:[], ready:false, teamRedealLeft:1, teamSwapIds:[] }
+    ],
+    selecting: 0, // player currently making a decision (team select / placement)
+    board: Array.from({length:BOARD_H}, ()=>Array(BOARD_W).fill(EMPTY)),
+    units: [], // array of unit objects
+    nextUnitId: 1,
+    turn: 1,
+    currentPlayer: 0,
+    currentUnit: null, // unit id currently acting
+    peekUnitId: null, // 敵クリック時の情報ポップのみ
+    actedUnits: new Set(), // ids that already acted this phase
+    selectedAction: null, // { type:'move'|'attack'|'skill'|'ougi', options:{...} }
+    log: [],
+    targetingResolve: null, // callback for targeting
+    traps: [] // {x,y,owner,dmg}
+  };
+}
+
+// ==================================================
+// UTILITIES
+// ==================================================
+function dist(a,b) { return Math.max(Math.abs(a.x-b.x), Math.abs(a.y-b.y)); } // Chebyshev for square range
+function manhattan(a,b) { return Math.abs(a.x-b.x)+Math.abs(a.y-b.y); }
+function inBoard(x,y) { return x>=0 && x<BOARD_W && y>=0 && y<BOARD_H; }
+function unitAt(x,y) { return state.units.find(u=>u.alive && u.x===x && u.y===y); }
+function findUnit(id) { return state.units.find(u=>u.id===id); }
+function aliveAllies(owner) { return state.units.filter(u=>u.alive && u.owner===owner); }
+function aliveEnemies(owner) { return state.units.filter(u=>u.alive && u.owner!==owner); }
+function otherOwner(o){ return 1-o; }
+function coinToss(){ return Math.random()<0.5 ? 'heads':'tails'; }
+function diceRoll(){ return 1+Math.floor(Math.random()*6); }
+function log(msg, cls='info') { state.log.push({msg, cls}); renderLog(); }
+
+// ==================================================
+// EFFECT SYSTEM
+// ==================================================
+// Effects tick each time their owner's turn ends (duration decreases then)
+// types: immobilize, paralyze, heavyWound, injured, stealth, pierce, doomed, hot, cutNext,
+//        endure1, taunt (source=nobusei), protected, brigant, healNext, ougiBuff(+N), mvBuff(+N),
+//        shieldN(N uses), firstStrikeUsed, luckyUsed, immuneUsed (count), sharedHpWith(id),
+//        revived, hateOrigin (sins boost),  slashTrap -> stored in state.traps separately
+function addEffect(unit, eff) {
+  // 本輪西夏: バフ・デバフの効果を受けない
+  if (unit.charId===12) { log(`${unit.name}は効果を受けない`, 'info'); return; }
+  unit.effects.push(Object.assign({id:Math.random()}, eff));
+}
+function removeEffect(unit, type) {
+  unit.effects = unit.effects.filter(e=>e.type!==type);
+}
+function hasEffect(unit, type) { return unit.effects.some(e=>e.type===type); }
+function getEffect(unit, type) { return unit.effects.find(e=>e.type===type); }
+function tickEffects(unit) {
+  const hadDelayedKill = hasEffect(unit,'delayedKill');
+  const hadDoomed = hasEffect(unit,'doomed');
+  unit.effects = unit.effects.filter(e=>{
+    if (e.duration !== undefined) { e.duration--; if (e.duration<=0) return false; }
+    return true;
+  });
+  // HoT
+  const hot = getEffect(unit,'hot');
+  if (hot) { heal(unit, hot.amount); }
+  const hn = getEffect(unit,'healNext');
+  if (hn) { heal(unit, 1); removeEffect(unit,'healNext'); }
+  // delayedKill expired
+  if (hadDelayedKill && !hasEffect(unit,'delayedKill')) { killUnit(unit, '厄災の太刀・裏の効果'); }
+  // doomed expired
+  if (hadDoomed && !hasEffect(unit,'doomed')) { killUnit(unit, '死亡効果'); }
+}
+
+// ==================================================
+// DAMAGE / HEAL PIPELINE (with hooks)
+// ==================================================
+function applyDamage(target, amount, opts={}) {
+  if (!target.alive) return 0;
+  // protected (Yggdrasil)
+  if (hasEffect(target,'protected')) { log(`${target.name}はユグドラシルで無効`, 'info'); return 0; }
+  // 絵笛 ラッキーボーイ (once)
+  if (target.charId===14 && !target.luckyUsed) {
+    target.luckyUsed = true;
+    log(`${target.name}のラッキーボーイ！攻撃無効`, 'skill');
+    return 0;
+  }
+  // 玩步 未来を引き寄せる力 (2回まで)
+  if (target.charId===21 && (target.immuneCount||0) < 2) {
+    target.immuneCount = (target.immuneCount||0)+1;
+    log(`${target.name}は未来の力でダメージ無効(${target.immuneCount}/2)`, 'skill');
+    return 0;
+  }
+  // 静狩 極限反射
+  if (target.charId===10 && !opts.bypassDodge) {
+    if (coinToss()==='heads') { log(`${target.name}の極限反射！回避`, 'skill'); return 0; }
+  }
+  // 母恋 ゾーン: 隣接敵からの攻撃を無効
+  if (target.charId===15 && opts.attacker && dist(target,opts.attacker)<=1 && opts.attacker.owner!==target.owner) {
+    log(`${target.name}のゾーン！隣接敵からの攻撃を無効`, 'skill');
+    return 0;
+  }
+  // 鹿谷 シールド付与 (shieldN)
+  const sh = getEffect(target,'shield');
+  if (sh) {
+    sh.uses--;
+    if (sh.uses<=0) removeEffect(target,'shield');
+    log(`${target.name}のシールドで無効`, 'skill');
+    return 0;
+  }
+  // 兩伞 天神の称号: 次被弾無効 (immuneNext)
+  if (hasEffect(target,'immuneNext')) {
+    removeEffect(target,'immuneNext');
+    log(`${target.name}は天神の称号でダメージ無効`, 'skill');
+    return 0;
+  }
+  // 5 うちが見つけた獲物: 既に攻撃した敵に追撃 (handled in attack)
+  // 七重浜 ブリガンテ: 次被弾コイン表で相殺
+  const brig = getEffect(target,'brigantShield');
+  if (brig) {
+    removeEffect(target,'brigantShield');
+    if (coinToss()==='heads') { log(`${target.name}のブリガンテで攻撃相殺`, 'skill'); return 0; }
+  }
+  // 大岸綾(大人) 先制攻撃
+  if (target.charId===25 && !target.firstStrikeUsed && opts.attacker && opts.attacker.alive) {
+    target.firstStrikeUsed = true;
+    log(`${target.name}の収束する因果！先制で2ダメージ`, 'skill');
+    applyDamage(opts.attacker, 2, { bypassFirstStrike:true, attacker:target });
+  }
+  // 沼端 俺が守ってやる: 隣接味方のダメージを代わりに受ける (single-target only)
+  if (!opts.isAoe && !opts.isRedirected) {
+    const protector = state.units.find(u=>u.alive && u.charId===1 && u.owner===target.owner && u!==target && dist(u,target)<=1);
+    if (protector) {
+      log(`${protector.name}が${target.name}を守る！`, 'skill');
+      return applyDamage(protector, amount, Object.assign({}, opts, {isRedirected:true}));
+    }
+  }
+  // 鹿谷 鍛え上げられた肉体 (簡略: 隣接味方のダメージを受ける)
+  if (!opts.isAoe && !opts.isRedirected) {
+    const shika = state.units.find(u=>u.alive && u.charId===9 && u.owner===target.owner && u!==target && dist(u,target)<=1);
+    if (shika && Math.random()<0.5) {
+      log(`${shika.name}が${target.name}の盾となる`, 'skill');
+      return applyDamage(shika, amount, Object.assign({}, opts, {isRedirected:true}));
+    }
+  }
+
+  // 負傷: 受ダメ+1
+  if (hasEffect(target,'injured')) amount += 1;
+  // 刺突: 被弾時+1
+  if (hasEffect(target,'pierce')) amount += 1;
+  // 沼端 ヒーローへの切符: 偶数ターン毎に受けるダメ-1, 3回蓄積
+  if (target.charId===1) {
+    if (!target.heroTicketStack) target.heroTicketStack = 0;
+    const reduce = Math.min(3, target.heroTicketStack);
+    amount = Math.max(0, amount - reduce);
+  }
+
+  // Apply
+  const actual = Math.max(0, amount);
+  // 陰陽師詩歌 ダメージ共有
+  if (target.sharedWith) {
+    const partner = findUnit(target.sharedWith);
+    if (partner && partner.alive && partner!==target) {
+      partner.hp -= actual;
+      if (partner.hp<0) partner.hp=0;
+      log(`${partner.name}も${actual}ダメージ共有`, 'damage');
+      if (partner.hp<=0) killUnit(partner);
+    }
+  }
+  target.hp -= actual;
+  if (target.hp<0) target.hp=0;
+  log(`${target.name}に${actual}ダメージ (HP:${target.hp}/${target.maxHp})`, 'damage');
+  fxDamage(target.x, target.y, actual);
+  // HP1耐え
+  if (target.hp<=0) {
+    const endure = getEffect(target,'endure1');
+    if (endure) {
+      removeEffect(target,'endure1');
+      target.hp = 1;
+      log(`${target.name}はHP1で耐えた！`, 'skill');
+    }
+  }
+  if (target.hp<=0) killUnit(target);
+  return actual;
+}
+
+function heal(unit, amount) {
+  if (!unit.alive) return;
+  const before = unit.hp;
+  unit.hp = Math.min(unit.maxHp, unit.hp+amount);
+  if (unit.hp>before) { log(`${unit.name}はHP${unit.hp-before}回復 (HP:${unit.hp}/${unit.maxHp})`, 'heal'); fxHeal(unit.x, unit.y, unit.hp-before); }
+}
+
+function killUnit(unit, reason) {
+  if (!unit.alive) return;
+  // 羽帯 永遠の夜明け
+  if (unit.charId===18 && !unit.revivedOnce) {
+    unit.revivedOnce = true;
+    unit.hp = unit.maxHp;
+    unit.alive = true;
+    log(`${unit.name}は永遠の夜明けで復活！`, 'skill');
+    return;
+  }
+  unit.alive = false;
+  unit.hp = 0;
+  log(`${unit.name}は戦闘不能${reason?`（${reason}）`:''}`, 'damage');
+  fxDeath(unit.x, unit.y);
+}
+
+// ==================================================
+// UNIT CREATION
+// ==================================================
+function createUnit(charId, owner, x, y) {
+  const c = CHARACTERS.find(ch=>ch.id===charId);
+  let maxHp = c.hp;
+  // 桔梗 ラストソング: 味方に女性いればHP12 (gender data simplified: assume females among female-like names)
+  // Simplified: if character 16 and team has any of [3,4,5,7,8,10,12,13,14,22,23,25]
+  // We'll check later after team assembled; for now set base
+  const unit = {
+    id: state.nextUnitId++,
+    charId, owner, x, y,
+    name: c.name,
+    maxHp, hp: maxHp,
+    move: c.move, range: c.range.slice(),
+    ap: 0,
+    moved: false, acted: false,
+    extraAction: false,
+    alive: true,
+    effects: [],
+    char: c
+  };
+  return unit;
+}
+
+// Character gender mapping (for 桔梗 / 佐久)
+const FEMALE_IDS = new Set([3,4,5,7,8,10,12,13,14,18,22,23,25]); // approximation
+const MALE_IDS = new Set([1,2,6,9,11,15,16,17,19,20,21,24]);
+
+function applyStartOfGameEffects() {
+  // 桔梗 ラストソング
+  state.units.forEach(u=>{
+    if (u.charId===16) {
+      const hasFemaleAlly = aliveAllies(u.owner).some(a=>a!==u && FEMALE_IDS.has(a.charId));
+      if (hasFemaleAlly) { u.maxHp = 12; u.hp = 12; log(`${u.name}のラストソング発動！HP12に`, 'skill'); }
+    }
+  });
+  // 陰陽師詩歌 ダメージ共有
+  state.units.forEach(u=>{
+    if (u.charId===23) {
+      const enemies = aliveEnemies(u.owner);
+      if (enemies.length>0) {
+        const target = enemies.reduce((a,b)=>a.maxHp>b.maxHp?a:b);
+        u.sharedWith = target.id;
+        target.sharedWith = u.id;
+        log(`${u.name}が${target.name}とダメージを共有`, 'skill');
+      }
+    }
+  });
+}
+
+// ==================================================
+// MOVEMENT
+// ==================================================
+function getReachableCells(unit) {
+  if (hasEffect(unit,'immobilize') || hasEffect(unit,'paralyze')) return [];
+  let move = unit.move;
+  // 桐生呼人 知性への叛逆
+  if (unit.charId===6 && unit.hp<=4) move = 3;
+  // 姫川 move buff
+  const mvb = getEffect(unit,'mvBuff');
+  if (mvb) move += mvb.amount;
+  const visited = {};
+  visited[`${unit.x},${unit.y}`] = 0;
+  const queue = [{x:unit.x, y:unit.y, d:0}];
+  while(queue.length) {
+    const cur = queue.shift();
+    if (cur.d>=move) continue;
+    for (const [dx,dy] of [[0,1],[1,0],[0,-1],[-1,0]]) {
+      const nx=cur.x+dx, ny=cur.y+dy;
+      if (!inBoard(nx,ny)) continue;
+      const key = `${nx},${ny}`;
+      if (visited[key]!==undefined && visited[key]<=cur.d+1) continue;
+      const u = unitAt(nx,ny);
+      if (u && u.id!==unit.id) continue; // blocked
+      visited[key] = cur.d+1;
+      queue.push({x:nx,y:ny,d:cur.d+1});
+    }
+  }
+  const cells=[];
+  for (const k in visited) {
+    const [x,y] = k.split(',').map(Number);
+    if (x===unit.x && y===unit.y) continue;
+    cells.push({x,y});
+  }
+  return cells;
+}
+
+function moveUnit(unit, x, y) {
+  // 重症: 移動毎1ダメ
+  if (hasEffect(unit,'heavyWound')) applyDamage(unit, 1, {isRedirected:true});
+  unit.x = x; unit.y = y;
+  unit.moved = true;
+  // check traps
+  const tr = state.traps.find(t=>t.x===x && t.y===y && t.owner!==unit.owner);
+  if (tr) {
+    log(`${unit.name}は斬撃を踏んだ！`, 'damage');
+    applyDamage(unit, tr.dmg, {attacker:null});
+    state.traps = state.traps.filter(t=>t!==tr);
+  }
+}
+
+// ==================================================
+// ATTACK RANGE / TARGETING
+// ==================================================
+function getAttackAreaFrom(unit, originX=unit.x, originY=unit.y) {
+  let [mn,mx] = unit.range;
+  if (unit.charId===6 && unit.hp<=4) { mn=1; mx=2; }
+  if (unit.charId===17 && state.units.some(u=>u.alive && u.charId===16)) { mx = 99; }
+  const cells=[];
+  for (let y=0;y<BOARD_H;y++) for (let x=0;x<BOARD_W;x++) {
+    const d = Math.abs(x-originX) + Math.abs(y-originY);
+    if (d>=mn && d<=mx) cells.push({x,y});
+  }
+  return cells;
+}
+
+function getMoveAttackArea(unit, moveCells) {
+  const seen = new Set();
+  const cells = [];
+  moveCells.forEach(pos=>{
+    getAttackAreaFrom(unit, pos.x, pos.y).forEach(c=>{
+      const key = `${c.x},${c.y}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      cells.push(c);
+    });
+  });
+  return cells;
+}
+
+function getAttackRange(unit) {
+  let [mn,mx] = unit.range;
+  // 桐生 knee rebellion: HP4以下で射程2
+  if (unit.charId===6 && unit.hp<=4) { mn=1; mx=2; }
+  // 姫川 カリアゲ: ホストが場にいれば射程無限
+  if (unit.charId===17 && state.units.some(u=>u.alive && u.charId===16)) { mx = 99; }
+  const cells=[];
+  for (let y=0;y<BOARD_H;y++) for (let x=0;x<BOARD_W;x++) {
+    const d = Math.abs(x-unit.x) + Math.abs(y-unit.y);
+    if (d>=mn && d<=mx) {
+      const t = unitAt(x,y);
+      if (t && t.owner!==unit.owner && !hasEffect(t,'stealth')) cells.push({x,y});
+    }
+  }
+  // Apply taunt (Hate / 原初の罪)
+  const enemies = cells.map(c=>unitAt(c.x,c.y)).filter(Boolean);
+  // 原初の罪: 朔以外を優先 -> means: cannot target 朔(24) if others exist
+  const hasSinsOrigin = state.units.some(u=>u.alive && u.charId===24 && u.owner!==unit.owner);
+  if (hasSinsOrigin) {
+    const nonSaku = enemies.filter(e=>e.charId!==24);
+    if (nonSaku.length>0) {
+      return nonSaku.map(e=>({x:e.x,y:e.y}));
+    }
+  }
+  // 晩生朔2 ヘイト: 対象に含まれるなら強制
+  const hateUnit = enemies.find(e=>e.charId===2);
+  if (hateUnit) return [{x:hateUnit.x, y:hateUnit.y}];
+  return cells;
+}
+
+/* ===== VISUAL EFFECT ENGINE ===== */
+function fxCell(x,y) { return document.querySelector(`#board .cell-at[data-x="${x}"][data-y="${y}"]`); }
+function fxCellCenter(x,y) {
+  const c=fxCell(x,y); if(!c) return null;
+  const r=c.getBoundingClientRect();
+  return {x:r.left+r.width/2, y:r.top+r.height/2};
+}
+function fxNum(x,y,text,cls) {
+  const pos=fxCellCenter(x,y); if(!pos) return;
+  const el=document.createElement('div');
+  el.className='fx-num '+cls;
+  el.textContent=text;
+  el.style.left=(pos.x+(Math.random()-0.5)*36-20)+'px';
+  el.style.top=(pos.y-10)+'px';
+  document.body.appendChild(el);
+  setTimeout(()=>el.remove(),1500);
+}
+function fxFlash(color,opacity=0.55) {
+  const el=document.createElement('div');
+  el.className='fx-flash';
+  el.style.background=color;
+  el.style.opacity=opacity;
+  document.body.appendChild(el);
+  setTimeout(()=>el.remove(),450);
+}
+function fxAura(x,y,color,size=80) {
+  const pos=fxCellCenter(x,y); if(!pos) return;
+  const el=document.createElement('div');
+  el.className='fx-aura';
+  el.style.cssText=`width:${size}px;height:${size}px;left:${pos.x-size/2}px;top:${pos.y-size/2}px;background:radial-gradient(circle,${color},transparent 70%);box-shadow:0 0 ${size/2}px ${color};`;
+  document.body.appendChild(el);
+  setTimeout(()=>el.remove(),750);
+}
+function fxImgAt(x,y,src,animCls,size=140,dur=750,offX=0,offY=0) {
+  const pos=fxCellCenter(x,y); if(!pos) return;
+  const el=document.createElement('img');
+  el.className='fx-img '+animCls;
+  el.src=src;
+  el.style.cssText=`width:${size}px;height:${size}px;left:${pos.x-size/2+offX}px;top:${pos.y-size/2+offY}px;`;
+  document.body.appendChild(el);
+  setTimeout(()=>el.remove(),dur+100);
+}
+function fxCellEffect(x,y,cls,dur=500) {
+  const c=fxCell(x,y); if(!c) return;
+  c.classList.remove(cls); void c.offsetWidth;
+  c.classList.add(cls);
+  setTimeout(()=>c.classList.remove(cls),dur);
+}
+const FX_IMG = 'img/fx/';
+function fxDamage(x,y,amount) {
+  const big=amount>=5;
+  fxNum(x,y,`-${amount}`,big?'dmg big':'dmg');
+  fxCellEffect(x,y,'attack-effect',450);
+  // 赤い魔法陣
+  fxImgAt(x,y,FX_IMG+'fx-circle-atk.png','fx-circle',160,700);
+  // 赤スラッシュ横線
+  fxImgAt(x,y,FX_IMG+'fx-slash.png','fx-slash-anim',180,450,0,-20);
+  if(big) {
+    fxFlash('rgba(255,100,0,0.6)');
+    // 火花爆発
+    fxImgAt(x,y,FX_IMG+'fx-attack.png','fx-pop',180,700,0,-10);
+  } else if(amount>=3) {
+    fxFlash('rgba(200,30,0,0.35)');
+    fxImgAt(x,y,FX_IMG+'fx-attack.png','fx-pop',130,650,0,-5);
+  }
+}
+function fxHeal(x,y,amount) {
+  fxNum(x,y,`+${amount}`,'heal');
+  fxAura(x,y,'rgba(80,255,140,0.9)',70);
+  fxImgAt(x,y,FX_IMG+'fx-heal.png','fx-pop',150,750);
+}
+function fxDeath(x,y) {
+  fxCellEffect(x,y,'death-effect',650);
+  fxFlash('rgba(160,0,0,0.65)',0.7);
+  fxAura(x,y,'rgba(255,0,0,0.9)',110);
+  fxImgAt(x,y,FX_IMG+'fx-death.png','fx-pop-big',200,900,0,-20);
+  setTimeout(()=>fxImgAt(x,y,FX_IMG+'fx-circle-atk.png','fx-circle',180,700),150);
+}
+function fxSkill(x,y) {
+  fxCellEffect(x,y,'skill-effect',650);
+  fxAura(x,y,'rgba(80,160,255,0.9)',100);
+  fxFlash('rgba(0,100,255,0.25)',0.25);
+  fxImgAt(x,y,FX_IMG+'fx-skill.png','fx-pop',190,850,0,-20);
+  setTimeout(()=>fxImgAt(x,y,FX_IMG+'fx-circle-skill.png','fx-circle',170,700),100);
+}
+function fxOugi(x,y) {
+  fxCellEffect(x,y,'ougi-effect',750);
+  fxAura(x,y,'rgba(255,200,0,1)',140);
+  fxFlash('rgba(255,160,0,0.5)',0.5);
+  setTimeout(()=>fxFlash('rgba(200,0,200,0.3)',0.3),200);
+  // 紫爆発 → 金魔法陣
+  fxImgAt(x,y,FX_IMG+'fx-ougi.png','fx-pop-big',210,900,0,-30);
+  setTimeout(()=>fxImgAt(x,y,FX_IMG+'fx-circle-ougi.png','fx-circle',190,750),150);
+  setTimeout(()=>fxImgAt(x,y,FX_IMG+'fx-skill.png','fx-pop',160,700,-20,10),300);
+}
+/* ===== END EFFECT ENGINE ===== */
+
+function playAttackEffect(x,y) {
+  const cell = document.querySelector(`#board .cell-at[data-x="${x}"][data-y="${y}"]`);
+  if (!cell) return;
+  cell.classList.remove('attack-effect');
+  void cell.offsetWidth;
+  cell.classList.add('attack-effect');
+  setTimeout(()=>cell.classList.remove('attack-effect'), 380);
+}
+
+function attackUnit(attacker, target) {
+  let dmg = 1 + attackBonus(attacker);
+  // ougiBuff
+  const ob = getEffect(attacker,'ougiBuff');
+  if (ob) dmg += ob.amount;
+  // 負傷: 与ダメ-2
+  if (hasEffect(attacker,'injured')) dmg = Math.max(0, dmg-2);
+  // 東山 才覚の章
+  if (hasEffect(attacker,'damageBuff')) dmg += getEffect(attacker,'damageBuff').amount;
+  // 兩伞 天神の称号
+  const tensin = getEffect(attacker,'tensinBuff');
+  if (tensin) dmg += tensin.amount;
+  // 綾 HP4以下+2
+  if (attacker.charId===13 && attacker.hp<=4) dmg += 2;
+  // 桐生 HP4以下+2
+  if (attacker.charId===6 && attacker.hp<=4) dmg += 2;
+  // ブリガンテ中: +3 (handled as ougiBuff)
+  // 鵜苫 石は岩 pierce effect
+  log(`${attacker.name}が${target.name}を攻撃！`, 'info');
+  playAttackEffect(target.x, target.y);
+  applyDamage(target, dmg, {attacker});
+  // 刁 天神の称号: 反撃
+  if (target.charId===20 && target.alive) {
+    log(`${target.name}の反撃！`, 'skill');
+    applyDamage(attacker, 2, {attacker:target, bypassDodge:true});
+  }
+  // 茅沼 援護射撃 (周囲3マス以内に味方の藻琴がいれば)
+  const mokoto = state.units.find(u=>u.alive && u.charId===7 && u.owner===attacker.owner && u!==attacker && dist(u,attacker)<=3);
+  if (mokoto) {
+    log(`${mokoto.name}の援護射撃！`, 'skill');
+    applyDamage(target, 1, {attacker:mokoto});
+  }
+  // 七重浜 うちが見つけた獲物: 簡略実装(+1ダメは攻撃時処理済みで省略)
+}
+
+function attackBonus(unit) {
+  let b = 0;
+  if (hasEffect(unit,'brigant')) b += 3;
+  return b;
+}
+
+// ==================================================
+// SKILLS & OUGIS
+// ==================================================
+// Each returns a targeting request or executes directly.
+// exec receives: (caster, target). target depends on kind.
+
+function skillTargets(caster, sk) {
+  const rng = sk.rng || [0,99];
+  const result = [];
+  for (let y=0;y<BOARD_H;y++) for (let x=0;x<BOARD_W;x++) {
+    const d = Math.abs(x-caster.x) + Math.abs(y-caster.y);
+    if (d<rng[0]||d>rng[1]) continue;
+    if (sk.kind==='selectEnemy') {
+      const u = unitAt(x,y); if (u && u.owner!==caster.owner && u.alive) result.push({x,y,unit:u});
+    } else if (sk.kind==='selectAlly') {
+      const u = unitAt(x,y); if (u && u.owner===caster.owner && u.alive && u.id!==caster.id) result.push({x,y,unit:u});
+    } else if (sk.kind==='selectMaleAlly') {
+      const u = unitAt(x,y); if (u && u.owner===caster.owner && u.alive && u.id!==caster.id && MALE_IDS.has(u.charId)) result.push({x,y,unit:u});
+    } else if (sk.kind==='selectAny') {
+      const u = unitAt(x,y); if (u && u.alive) result.push({x,y,unit:u});
+    } else if (sk.kind==='selectCell') {
+      if (!unitAt(x,y)) result.push({x,y});
+    }
+  }
+  return result;
+}
+
+function executeSkill(caster) {
+  const sk = caster.char.skill;
+  log(`${caster.name}のスキル『${sk.name}』`, 'skill');
+  return executeAbility(caster, sk, 'skill');
+}
+function executeOugi(caster) {
+  const og = caster.char.ougi;
+  log(`${caster.name}の奥義『${og.name}』発動！`, 'ougi');
+  return executeAbility(caster, og, 'ougi');
+}
+
+// Dispatch based on caster.charId and ability type.
+function executeAbility(caster, ab, abType) {
+  const id = caster.charId;
+  const isOugi = abType==='ougi';
+  return new Promise(resolve=>{
+    state._execResolve = resolve;
+    state._execResolved = false;
+    state.pendingAbilityCaster = caster;
+    const done = ()=>{
+      if (state._execResolved) return;
+      state._execResolved = true;
+      delete state.placeTrapsAbortHandler;
+      state._execResolve = null;
+      state.pendingAbilityCaster = null;
+      confirmPendingAction(caster);
+      finishAction(caster);
+      resolve();
+    };
+    state._currentDone = done;
+    // ==========
+    // Use dispatcher table
+    // ==========
+    // For 'auto' kind: apply effect to all enemies in range or specific self-effect
+    // For 'selectEnemy': ask for target
+    // For 'selectDirection': ask for direction
+    // For 'selectCell': ask for cell
+    // etc.
+    if (ab.kind==='passive') { log('（パッシブ）', 'info'); done(); return; }
+    switch(id){
+      case 1: // 沼端
+        if (isOugi) { // 厄災の太刀・偽 (direction)
+          chooseDirection(caster, (dx,dy)=>{
+            for (let i=1;i<=2;i++){
+              const tx=caster.x+dx*i, ty=caster.y+dy*i;
+              if (!inBoard(tx,ty)) continue;
+              const t = unitAt(tx,ty);
+              if (t && t.owner!==caster.owner) applyDamage(t, 3, {attacker:caster, isAoe:true});
+            }
+            heal(caster, 4);
+            addEffect(caster,{type:'endure1', fromSelf:true});
+            done();
+          });
+        }
+        break;
+      case 2: // 晩生朔
+        if (!isOugi) {
+          chooseUnit(caster, skillTargets(caster, ab), (t)=>{
+            applyDamage(t.unit, 2, {attacker:caster});
+            heal(caster, 2);
+            done();
+          });
+        } else {
+          const enemies = aliveEnemies(caster.owner).filter(e=>dist(caster,e)<=2);
+          enemies.forEach(e=>{ applyDamage(e,3,{attacker:caster,isAoe:true}); addEffect(e,{type:'heavyWound', duration:2}); });
+          done();
+        }
+        break;
+      case 3: // 鵜苫
+        if (!isOugi) {
+          chooseUnit(caster, skillTargets(caster, ab), (t)=>{
+            applyDamage(t.unit, 3, {attacker:caster});
+            addEffect(caster,{type:'stealth', duration:2, fromSelf:true});
+            done();
+          });
+        } else {
+          aliveEnemies(caster.owner).filter(e=>dist(caster,e)<=2).forEach(e=>{
+            applyDamage(e,2,{attacker:caster,isAoe:true});
+            addEffect(e,{type:'pierce', duration:3});
+          });
+          done();
+        }
+        break;
+      case 4: // 佐久
+        if (!isOugi) {
+          aliveAllies(caster.owner).forEach(a=>{ heal(a,2); addEffect(a,{type:'healNext', fromSelf:true}); });
+          done();
+        } else {
+          chooseUnit(caster, skillTargets(caster, ab), (t)=>{
+            heal(t.unit, 2);
+            addEffect(t.unit,{type:'damageCut', amount:3, duration:2, fromSelf:true});
+            done();
+          }, '男性味方を選択');
+        }
+        break;
+      case 5: // 七重浜
+        if (!isOugi) {
+          chooseUnit(caster, skillTargets(caster, ab), (t)=>{
+            applyDamage(t.unit, 3, {attacker:caster});
+            caster.extraAction = true;
+            done();
+          });
+        } else {
+          applyDamage(caster, 2, {isRedirected:true});
+          addEffect(caster,{type:'brigant', duration:2, fromSelf:true});
+          addEffect(caster,{type:'brigantShield', duration:2, fromSelf:true});
+          caster.noReact = true;
+          done();
+        }
+        break;
+      case 6: // 桐生
+        if (!isOugi) {
+          chooseUnit(caster, skillTargets(caster, ab), (t)=>{
+            applyDamage(t.unit, 2, {attacker:caster});
+            aliveAllies(caster.owner).forEach(a=>{ if(a!==caster) heal(a,2); });
+            if (coinToss()==='heads') { caster.extraAction = true; log('コイン表！再行動', 'skill'); }
+            done();
+          });
+        } else {
+          chooseDirection(caster, (dx,dy)=>{
+            const hits=[];
+            for (let i=1;i<=2;i++){
+              for (const [ddx,ddy] of [[dx,dy],[-dy,dx],[dy,-dx]]) {
+                const tx=caster.x+ddx*i, ty=caster.y+ddy*i;
+                if (!inBoard(tx,ty)) continue;
+                const t = unitAt(tx,ty);
+                if (t && t.owner!==caster.owner && !hits.includes(t)) { hits.push(t); applyDamage(t,3,{attacker:caster, isAoe:true}); }
+              }
+            }
+            if (hits.length>=2) { caster.extraAction = true; log('複数撃破！再行動', 'skill'); }
+            done();
+          });
+        }
+        break;
+      case 7: // 茅沼
+        if (!isOugi) {
+          chooseUnit(caster, skillTargets(caster, ab), (t)=>{
+            let d = 3;
+            if (aliveAllies(caster.owner).some(a=>a!==caster && dist(a,caster)<=2)) d+=1;
+            applyDamage(t.unit, d, {attacker:caster});
+            done();
+          });
+        } else {
+          aliveEnemies(caster.owner).filter(e=>dist(caster,e)<=2).forEach(e=>applyDamage(e,4,{attacker:caster, isAoe:true}));
+          aliveAllies(caster.owner).filter(a=>a!==caster && dist(caster,a)<=2).forEach(a=>applyDamage(a,4,{attacker:caster, isAoe:true}));
+          done();
+        }
+        break;
+      case 8: // 金華
+        if (!isOugi) {
+          chooseUnit(caster, skillTargets(caster, ab), (t)=>{
+            // Move adjacent to target
+            const adj = adjacentEmpty(t.unit);
+            if (adj) { moveUnit(caster, adj.x, adj.y); }
+            applyDamage(t.unit, 2, {attacker:caster});
+            addEffect(t.unit,{type:'injured', duration:3});
+            done();
+          });
+        } else {
+          aliveAllies(caster.owner).filter(a=>dist(caster,a)<=2).forEach(a=>addEffect(a,{type:'protected', duration:2, fromSelf:true}));
+          addEffect(caster,{type:'protected', duration:2, fromSelf:true});
+          aliveEnemies(caster.owner).filter(e=>dist(caster,e)<=2).forEach(e=>{
+            applyDamage(e,2,{attacker:caster, isAoe:true}); addEffect(e,{type:'injured', duration:3});
+          });
+          done();
+        }
+        break;
+      case 9: // 鹿谷
+        if (!isOugi) {
+          chooseUnit(caster, skillTargets(caster, ab), (t)=>{
+            addEffect(t.unit,{type:'shield', uses:2, fromSelf:true});
+            done();
+          });
+        } else {
+          chooseDirection(caster, (dx,dy)=>{
+            for (let i=1;i<=2;i++){
+              const tx=caster.x+dx*i, ty=caster.y+dy*i;
+              if (!inBoard(tx,ty)) continue;
+              const t = unitAt(tx,ty);
+              if (t && t.owner!==caster.owner) {
+                applyDamage(t,3,{attacker:caster, isAoe:true});
+                // knockback 3
+                for (let k=1;k<=3;k++){
+                  const nx=t.x+dx, ny=t.y+dy;
+                  if (!inBoard(nx,ny) || unitAt(nx,ny)) {
+                    const blocker = unitAt(nx,ny);
+                    if (blocker && blocker.alive) {
+                      applyDamage(t,2,{attacker:caster});
+                      applyDamage(blocker,2,{attacker:caster});
+                      addEffect(t,{type:'paralyze', duration:2});
+                      addEffect(blocker,{type:'paralyze', duration:2});
+                    }
+                    break;
+                  }
+                  t.x = nx; t.y = ny;
+                }
+                break;
+              }
+            }
+            done();
+          });
+        }
+        break;
+      case 10: // 静狩
+        if (!isOugi) {
+          const enemies = aliveEnemies(caster.owner).filter(e=>dist(caster,e)<=2);
+          enemies.forEach(e=>{ applyDamage(e,2,{attacker:caster, isAoe:true}); addEffect(e,{type:'immobilize', duration:2}); });
+          done();
+        } else {
+          const nearest = aliveEnemies(caster.owner).reduce((a,b)=>(!a||dist(caster,b)<dist(caster,a))?b:a, null);
+          if (nearest) {
+            const adj = adjacentEmpty(nearest);
+            if (adj) moveUnit(caster, adj.x, adj.y);
+            applyDamage(nearest,5,{attacker:caster});
+            caster.extraAction = true;
+          }
+          done();
+        }
+        break;
+      case 11: // 東山
+        if (!isOugi) {
+          chooseUnit(caster, skillTargets(caster, ab), (t)=>{
+            applyDamage(t.unit, 3, {attacker:caster});
+            done();
+          });
+        } else {
+          aliveAllies(caster.owner).forEach(a=>addEffect(a,{type:'damageBuff', amount:3, duration:2, fromSelf:true}));
+          done();
+        }
+        break;
+      case 12: // 本輪西
+        if (!isOugi) {
+          chooseDirection(caster, (dx,dy)=>{
+            for (let i=1;i<=2;i++){
+              const tx=caster.x+dx*i, ty=caster.y+dy*i;
+              if (!inBoard(tx,ty)) continue;
+              const t = unitAt(tx,ty);
+              if (t && t.owner!==caster.owner) { applyDamage(t,3,{attacker:caster}); break; }
+            }
+            done();
+          });
+        } else {
+          chooseUnit(caster, skillTargets(caster, ab), (t)=>{
+            t.unit.hp = t.unit.maxHp; t.unit.ap=0; t.unit.acted=false; t.unit.moved=false; t.unit.effects=[];
+            log(`${t.unit.name}を初期状態にリセット`, 'skill');
+            done();
+          });
+        }
+        break;
+      case 13: // 大岸綾
+        if (!isOugi) {
+          chooseDirection(caster, (dx,dy)=>{
+            for (let i=1;i<=5;i++){
+              const tx=caster.x+dx*i, ty=caster.y+dy*i;
+              if (!inBoard(tx,ty)) break;
+              const t = unitAt(tx,ty);
+              if (t && t.owner!==caster.owner) applyDamage(t,3,{attacker:caster, isAoe:true});
+            }
+            done();
+          });
+        } else {
+          chooseUnit(caster, skillTargets(caster, ab), (t)=>{
+            applyDamage(t.unit,4,{attacker:caster}); addEffect(t.unit,{type:'paralyze', duration:2});
+            done();
+          });
+        }
+        break;
+      case 14: // 絵笛
+        if (!isOugi) {
+          if (coinToss()==='heads') {
+            aliveAllies(caster.owner).filter(a=>dist(caster,a)<=2).forEach(a=>heal(a,3));
+            log('コイン表！味方回復', 'skill');
+          } else {
+            aliveEnemies(caster.owner).filter(e=>dist(caster,e)<=2).forEach(e=>applyDamage(e,3,{attacker:caster, isAoe:true}));
+            log('コイン裏！敵にダメージ', 'skill');
+          }
+          done();
+        } else {
+          chooseUnit(caster, skillTargets(caster, ab), (t)=>{
+            applyDamage(t.unit,5,{attacker:caster});
+            if (t.unit.alive) {
+              const tx=caster.x, ty=caster.y;
+              caster.x = t.unit.x; caster.y = t.unit.y;
+              t.unit.x = tx; t.unit.y = ty;
+              log(`${caster.name}と${t.unit.name}の位置を交換`, 'skill');
+            }
+            done();
+          });
+        }
+        break;
+      case 15: // 母恋
+        if (!isOugi) {
+          chooseUnit(caster, skillTargets(caster, ab), (t)=>{
+            applyDamage(t.unit,4,{attacker:caster});
+            done();
+          });
+        } else {
+          aliveEnemies(caster.owner).filter(e=>dist(caster,e)<=2).forEach(e=>{
+            applyDamage(e,2,{attacker:caster, isAoe:true});
+            addEffect(e,{type:'immobilize', duration:3});
+          });
+          done();
+        }
+        break;
+      case 16: // 桔梗
+        if (!isOugi) {
+          chooseUnit(caster, skillTargets(caster, ab), (t)=>{
+            const d = diceRoll();
+            log(`ダイス: ${d}`, 'skill');
+            if (d%2===0) { heal(caster,3); heal(t.unit,3); } else { applyDamage(caster,4,{isRedirected:true}); applyDamage(t.unit,4,{attacker:caster}); }
+            done();
+          });
+        } else {
+          chooseUnit(caster, skillTargets(caster, ab), (t)=>{
+            applyDamage(t.unit,2,{attacker:caster});
+            caster.hp = caster.maxHp;
+            log(`${caster.name}はHP全回復`, 'heal');
+            done();
+          });
+        }
+        break;
+      case 17: // 姫川
+        if (!isOugi) {
+          chooseDirection(caster, (dx,dy)=>{
+            for (let i=1;i<=3;i++){
+              for (const [ddx,ddy] of [[dx,dy],[-dy,dx],[dy,-dx]]) {
+                const tx=caster.x+ddx*i, ty=caster.y+ddy*i;
+                if (!inBoard(tx,ty)) continue;
+                const t = unitAt(tx,ty);
+                if (t && t.owner!==caster.owner) applyDamage(t,2,{attacker:caster, isAoe:true});
+              }
+            }
+            done();
+          });
+        } else {
+          aliveAllies(caster.owner).filter(a=>dist(caster,a)<=2).forEach(a=>{
+            heal(a,3); addEffect(a,{type:'mvBuff', amount:1, duration:2, fromSelf:true});
+          });
+          done();
+        }
+        break;
+      case 18: // 羽帯
+        if (!isOugi) {
+          chooseCell(caster, skillTargets(caster, ab), (cell)=>{
+            // Summon キョンシー (simple unit with HP6 move1 melee)
+            const kyon = createUnit(-1, caster.owner, cell.x, cell.y);
+            kyon.name='キョンシー'; kyon.maxHp=6; kyon.hp=6; kyon.range=[1,1]; kyon.move=1;
+            kyon.char = {name:'キョンシー', role:'召喚', move:1, range:[1,1], hp:6, skill:{name:'-',desc:'-',kind:'passive'}, ougi:{name:'-',desc:'-',cost:99}, sense:{name:'-',desc:'-'}};
+            state.units.push(kyon);
+            log('キョンシー召喚', 'skill');
+            done();
+          });
+        } else {
+          chooseUnit(caster, skillTargets(caster, ab), (t)=>{
+            addEffect(t.unit,{type:'immobilize', duration:2});
+            applyDamage(t.unit,3,{attacker:caster});
+            done();
+          });
+        }
+        break;
+      case 19: // 兩伞
+        if (!isOugi) {
+          chooseUnit(caster, skillTargets(caster, ab), (t)=>{
+            applyDamage(t.unit,3,{attacker:caster});
+            caster.extraAction = true;
+            done();
+          });
+        } else {
+          chooseUnit(caster, skillTargets(caster, ab), (t)=>{
+            applyDamage(t.unit,7,{attacker:caster});
+            done();
+          });
+        }
+        break;
+      case 20: // 刁
+        if (!isOugi) {
+          chooseUnit(caster, skillTargets(caster, ab), (t)=>{
+            applyDamage(t.unit,5,{attacker:caster});
+            done();
+          });
+        } else {
+          aliveEnemies(caster.owner).filter(e=>dist(caster,e)<=3).forEach(e=>{
+            applyDamage(e,4,{attacker:caster, isAoe:true});
+            addEffect(e,{type:'doomed', duration:3});
+          });
+          done();
+        }
+        break;
+      case 21: // 玩步
+        if (!isOugi) {
+          chooseUnit(caster, skillTargets(caster, ab), (t)=>{
+            applyDamage(t.unit,3,{attacker:caster});
+            heal(caster,2);
+            done();
+          });
+        } else {
+          aliveAllies(caster.owner).forEach(a=>{
+            heal(a,3); addEffect(a,{type:'damageBuff', amount:2, duration:2, fromSelf:true});
+          });
+          done();
+        }
+        break;
+      case 22: // シェカ
+        if (!isOugi) {
+          chooseUnit(caster, skillTargets(caster, ab), (t)=>{
+            applyDamage(t.unit,3,{attacker:caster});
+            addEffect(t.unit,{type:'immobilize', duration:2});
+            done();
+          });
+        } else {
+          chooseUnit(caster, skillTargets(caster, ab), (t)=>{
+            // swap positions with target
+            const tx=caster.x, ty=caster.y;
+            caster.x=t.unit.x; caster.y=t.unit.y;
+            t.unit.x=tx; t.unit.y=ty;
+            log(`${caster.name}と${t.unit.name}を入れ替え`, 'skill');
+            done();
+          });
+        }
+        break;
+      case 23: // 陰陽師詩歌
+        if (!isOugi) {
+          const enemies = aliveEnemies(caster.owner).sort((a,b)=>b.hp-a.hp).slice(0,2);
+          enemies.forEach(e=>applyDamage(e,3,{attacker:caster}));
+          done();
+        } else {
+          const top = aliveEnemies(caster.owner).reduce((a,b)=>(!a||b.hp>a.hp)?b:a, null);
+          if (top) { killUnit(top, '強制退場'); }
+          done();
+        }
+        break;
+      case 24: // 晩生朔(裏)
+        if (!isOugi) {
+          // Place 4 traps
+          placeTraps(caster, 4, 3, ()=>{ delete state.placeTrapsAbortHandler; done(); });
+        } else {
+          chooseUnit(caster, skillTargets(caster, ab), (t)=>{
+            applyDamage(t.unit,4,{attacker:caster});
+            if (t.unit.alive) addEffect(t.unit,{type:'delayedKill', duration:1});
+            done();
+          });
+        }
+        break;
+      case 25: // 大岸綾(大人)
+        if (!isOugi) {
+          chooseUnit(caster, skillTargets(caster, ab), (t)=>{
+            applyDamage(t.unit,3,{attacker:caster});
+            done();
+          });
+        } else {
+          chooseDirection(caster, (dx,dy)=>{
+            let firstTarget = null;
+            for (let i=1;i<=5;i++){
+              const tx=caster.x+dx*i, ty=caster.y+dy*i;
+              if (!inBoard(tx,ty)) break;
+              const t = unitAt(tx,ty);
+              if (t && t.owner!==caster.owner) { firstTarget = t; break; }
+            }
+            if (firstTarget) {
+              const hpBefore = firstTarget.hp;
+              applyDamage(firstTarget,8,{attacker:caster});
+              if (!firstTarget.alive) {
+                const remaining = 8 - hpBefore;
+                if (remaining>0) {
+                  const others = aliveEnemies(caster.owner).filter(e=>e!==firstTarget);
+                  if (others.length>0) {
+                    const t2 = others.reduce((a,b)=>b.hp>a.hp?b:a);
+                    applyDamage(t2, remaining, {attacker:caster});
+                  }
+                }
+              }
+            }
+            done();
+          });
+        }
+        break;
+      default:
+        done();
+    }
+  });
+}
+
+function adjacentEmpty(around) {
+  for (const [dx,dy] of [[0,1],[1,0],[0,-1],[-1,0],[1,1],[1,-1],[-1,1],[-1,-1]]) {
+    const x=around.x+dx, y=around.y+dy;
+    if (inBoard(x,y) && !unitAt(x,y)) return {x,y};
+  }
+  return null;
+}
+
+// ==================================================
+// TARGETING UI
+// ==================================================
+let targetingMode = null; // {kind, options, callback}
+
+function chooseUnit(caster, candidates, cb, hint) {
+  if (candidates.length===0) { log('対象なし', 'info'); state._currentDone && state._currentDone(); return; }
+  if (state.currentPlayer===1 && state.mode==='ai') {
+    // AI: pick the lowest-HP target
+    const sorted = candidates.slice().sort((a,b)=>((a.unit?.hp||99)-(b.unit?.hp||99)));
+    cb(sorted[0]);
+    return;
+  }
+  targetingMode = { kind:'unit', candidates, caster, cb, hint };
+  state.phase = 'targeting';
+  renderBattle();
+  document.getElementById('turn-hint').textContent = hint || '対象を選択';
+}
+function chooseCell(caster, cells, cb, hint) {
+  if (cells.length===0) { log('設置可能なマスなし', 'info'); state._currentDone && state._currentDone(); return; }
+  if (state.currentPlayer===1 && state.mode==='ai') {
+    cb(cells[Math.floor(Math.random()*cells.length)]);
+    return;
+  }
+  targetingMode = { kind:'cell', candidates:cells, caster, cb, hint };
+  state.phase = 'targeting';
+  renderBattle();
+  document.getElementById('turn-hint').textContent = hint || 'マスを選択';
+}
+function chooseDirection(caster, cb) {
+  if (state.currentPlayer===1 && state.mode==='ai') {
+    // AI picks toward nearest enemy (縦方向優先)
+    const enemies = aliveEnemies(caster.owner);
+    if (enemies.length===0) { cb(0, caster.owner===0 ? -1 : 1); return; }
+    const t = enemies.reduce((a,b)=>manhattan(caster,b)<manhattan(caster,a)?b:a);
+    const dx_raw = t.x - caster.x;
+    const dy_raw = t.y - caster.y;
+    let dx, dy;
+    if (Math.abs(dy_raw) >= Math.abs(dx_raw)) {
+      dy = Math.sign(dy_raw) || (caster.owner===0 ? -1 : 1);
+      dx = 0;
+    } else {
+      dx = Math.sign(dx_raw);
+      dy = 0;
+    }
+    cb(dx, dy);
+    return;
+  }
+  targetingMode = { kind:'direction', caster, cb };
+  const panel = document.getElementById('dir-panel');
+  const grid = document.getElementById('dir-grid');
+  grid.innerHTML = '';
+  const dirs = [
+    {dx:-1,dy:-1,label:'↖'},{dx:0,dy:-1,label:'↑'},{dx:1,dy:-1,label:'↗'},
+    {dx:-1,dy:0,label:'←'},{dx:0,dy:0,label:''},{dx:1,dy:0,label:'→'},
+    {dx:-1,dy:1,label:'↙'},{dx:0,dy:1,label:'↓'},{dx:1,dy:1,label:'↘'}
+  ];
+  dirs.forEach(d=>{
+    const b = document.createElement('button');
+    if (d.dx===0 && d.dy===0) { b.className='dir-btn empty'; }
+    else {
+      b.className='dir-btn';
+      b.textContent = d.label;
+      b.onclick = ()=>{
+        panel.classList.remove('active');
+        targetingMode = null;
+        state.phase = 'battle';
+        refreshCancelStrip();
+        // Limit to 4 cardinals by forcing one axis (forward in resource uses 前方)
+        let fdx=d.dx, fdy=d.dy;
+        if (fdx!==0 && fdy!==0) { // diagonal - use horizontal primary
+          if (Math.abs(fdx)>=Math.abs(fdy)) fdy=0; else fdx=0;
+        }
+        cb(fdx, fdy);
+      };
+    }
+    grid.appendChild(b);
+  });
+  panel.classList.add('active');
+  refreshCancelStrip();
+}
+
+function placeTraps(caster, n, dmg, doneCb) {
+  // AI: place randomly in enemy zone
+  if (state.currentPlayer===1 && state.mode==='ai') {
+    let placed = 0;
+    for (let tries=0; tries<50 && placed<n; tries++) {
+      const x = Math.floor(Math.random()*BOARD_W);
+      const y = Math.floor(Math.random()*BOARD_H);
+      if (!unitAt(x,y) && !state.traps.some(t=>t.x===x && t.y===y)) {
+        state.traps.push({x,y,owner:caster.owner,dmg});
+        placed++;
+      }
+    }
+    log(`${placed}箇所に斬撃設置`, 'skill');
+    doneCb();
+    return;
+  }
+  // Human: click to place one at a time
+  const placed = [];
+  const step = ()=>{
+    if (placed.length>=n) { doneCb(); return; }
+    targetingMode = { kind:'cell', candidates:null, caster, cb:(cell)=>{
+      state.traps.push({x:cell.x,y:cell.y,owner:caster.owner,dmg});
+      placed.push(cell);
+      log(`斬撃設置(${placed.length}/${n})`, 'skill');
+      step();
+    }, hint:`斬撃を設置(${placed.length+1}/${n})`, anyCell:true };
+    state.phase='targeting';
+    renderBattle();
+    document.getElementById('turn-hint').textContent = `斬撃を設置(${placed.length+1}/${n})`;
+  };
+  step();
+}
+
+// ==================================================
+// TURN / ACTION FLOW
+// ==================================================
+function startBattle() {
+  // Place units as set in placement phase
+  state.phase = 'battle';
+  state.turn = 1;
+  state.currentPlayer = 0;
+  applyStartOfGameEffects();
+  log('『バトル開始！』', 'turn');
+  startTurn();
+}
+
+function startTurn() {
+  const sideName = state.currentPlayer===0?'プレイヤー1':(state.mode==='ai'?'CPU':'プレイヤー2');
+  log(`--- ${state.turn}ターン目: ${sideName}の手番 ---`, 'turn');
+  // Turn start effects
+  aliveAllies(state.currentPlayer).forEach(u=>{
+    u.moved = false;
+    u.acted = false;
+    u.extraMove = false;
+    u.extraAction = false;
+    u.ap = (u.ap||0) + 1;
+    // 鵜苫翡翠 センス: 沼端と周囲3マス以内なら今ターン1度ノーコストでスキル可
+    if (u.charId===3) {
+      const noma = state.units.find(o=>o.alive && o.charId===1 && o.owner===u.owner && dist(o,u)<=3);
+      u.freeSkillToken = !!noma;
+    }
+    // 沼端 ヒーローへの切符: 偶数ターン毎に +1蓄積(最大3)
+    if (u.charId===1 && state.turn%2===0) {
+      u.heroTicketStack = Math.min(3, (u.heroTicketStack||0)+1);
+    }
+    // 金華 カッチーナ家の末裔: 奇数ターン潜伏
+    if (u.charId===8) {
+      if (state.turn%2===1) {
+        if (!hasEffect(u,'stealth')) addEffect(u,{type:'stealth', duration:2, fromSelf:true});
+      }
+    }
+    // 東山 帝国の流血: 隣接味方回復、隣接敵-2
+    if (u.charId===11) {
+      aliveAllies(u.owner).filter(a=>a!==u && dist(a,u)<=1).forEach(a=>heal(a,2));
+      aliveEnemies(u.owner).filter(e=>dist(e,u)<=1).forEach(e=>applyDamage(e,2,{attacker:u}));
+    }
+    // 兩伞 天神の称号
+    if (u.charId===19) {
+      const d = diceRoll();
+      if (d%2===0) { addEffect(u,{type:'tensinBuff', amount:3, duration:2, fromSelf:true}); log(`${u.name}ダイス${d} 与ダメ+3`, 'skill'); }
+      else { addEffect(u,{type:'immuneNext', duration:2, fromSelf:true}); log(`${u.name}ダイス${d} 次被弾無効`, 'skill'); }
+    }
+  });
+  updateTurnBar();
+  renderBattle();
+  if (state.currentPlayer===1 && state.mode==='ai') {
+    setTimeout(aiTurn, 500);
+  }
+}
+
+function finishAction(unit) {
+  if (unit.extraAction) { unit.extraAction = false; log(`${unit.name}は再行動可能！`, 'skill'); state.phase='battle'; state.selectedAction=null; renderBattle(); return; }
+  state.selectedAction = null;
+  state.phase = 'battle';
+  renderBattle();
+  if (checkVictory()) return;
+}
+
+function endPlayerTurn() {
+  // Tick effects for current player's units
+  aliveAllies(state.currentPlayer).forEach(u=>tickEffects(u));
+  state.currentUnit = null;
+  state.selectedAction = null;
+  // switch
+  state.currentPlayer = otherOwner(state.currentPlayer);
+  if (state.currentPlayer===0) state.turn++;
+  if (checkVictory()) return;
+  startTurn();
+}
+
+function checkVictory() {
+  const p0alive = aliveAllies(0).length>0;
+  const p1alive = aliveAllies(1).length>0;
+  if (!p0alive || !p1alive) {
+    let winner;
+    if (p0alive) winner = 0; else if (p1alive) winner = 1; else winner = -1;
+    setTimeout(()=>{
+      document.getElementById('result-text').textContent =
+        winner===-1 ? '引き分け' :
+        (winner===0 ? 'プレイヤー1の勝利！' :
+          (state.mode==='ai'?'CPUの勝利…':'プレイヤー2の勝利！'));
+      showScreen('screen-result');
+    }, 500);
+    return true;
+  }
+  return false;
+}
+
+function updateTurnBar() {
+  document.getElementById('turn-num').textContent = state.turn;
+  const ts = document.getElementById('turn-side');
+  ts.textContent = state.currentPlayer===0 ? 'プレイヤー1' : (state.mode==='ai'?'CPU':'プレイヤー2');
+  ts.className = 'side ' + (state.currentPlayer===0?'p1':'p2');
+}
+
+// ==================================================
+// PLAYER INPUT
+// ==================================================
+function selectUnit(unit) {
+  if (state.phase==='targeting') {
+    tryPickTarget({x:unit.x, y:unit.y, unit});
+    return;
+  }
+  if (state.selectedAction?.type==='attack') {
+    selectCellClick(unit.x, unit.y);
+    return;
+  }
+  if (unit.owner!==state.currentPlayer) {
+    state.peekUnitId = unit.id;
+    state.currentUnit = null;
+    state.selectedAction = null;
+    hideTooltip();
+    renderBattle();
+    showUnitInfo(unit);
+    return;
+  }
+  if (state.mode==='ai' && state.currentPlayer===1) { showUnitInfo(unit); return; }
+  state.peekUnitId = null;
+  state.currentUnit = unit.id;
+  if (!unit.moved || unit.extraMove) {
+    const cells = getReachableCells(unit);
+    state.selectedAction = { type:'move', options:{cells, attackCells:getMoveAttackArea(unit, cells)}, preview:true };
+  } else if (canTakeAction(unit, COST_ATTACK)) {
+    const cells = getAttackRange(unit);
+    state.selectedAction = cells.length ? { type:'attack', options:{cells}, preview:true } : null;
+  } else {
+    state.selectedAction = null;
+  }
+  hideTooltip();
+  renderBattle();
+  showUnitInfo(unit);
+}
+
+function selectCellClick(x,y) {
+  if (state.phase==='targeting' && targetingMode) {
+    if (targetingMode.anyCell) {
+      // trap placement
+      if (!unitAt(x,y) && !state.traps.some(t=>t.x===x && t.y===y)) {
+        const cb = targetingMode.cb;
+        targetingMode = null;
+        cb({x,y});
+      }
+      return;
+    }
+    if (targetingMode.kind==='cell') {
+      const cand = targetingMode.candidates.find(c=>c.x===x && c.y===y);
+      if (cand) { const cb=targetingMode.cb; targetingMode=null; cb(cand); }
+      return;
+    }
+    if (targetingMode.kind==='unit') {
+      const u = unitAt(x,y);
+      if (u) {
+        const cand = targetingMode.candidates.find(c=>c.x===x && c.y===y);
+        if (cand) { const cb=targetingMode.cb; targetingMode=null; cb(cand); }
+      }
+      return;
+    }
+  }
+  if (state.selectedAction && state.selectedAction.type==='move') {
+    const valid = state.selectedAction.options.cells;
+    if (valid.some(c=>c.x===x&&c.y===y)) {
+      const unit = findUnit(state.currentUnit);
+      moveUnit(unit, x, y);
+      state.selectedAction = null;
+      renderBattle();
+    }
+    return;
+  }
+  if (state.selectedAction && state.selectedAction.type==='attack') {
+    const valid = state.selectedAction.options.cells;
+    if (valid.some(c=>c.x===x&&c.y===y)) {
+      const unit = findUnit(state.currentUnit);
+      const target = unitAt(x,y);
+      consumeAction(unit, COST_ATTACK);
+      attackUnit(unit, target);
+      finishAction(unit);
+    }
+    return;
+  }
+  if (!unitAt(x,y) && state.phase!=='targeting' && !targetingMode && state.peekUnitId!=null && !state.selectedAction) {
+    state.peekUnitId = null;
+    renderBattle();
+  }
+}
+
+function tryPickTarget(target) {
+  if (!targetingMode) return;
+  if (targetingMode.kind==='unit') {
+    const cand = targetingMode.candidates.find(c=>c.x===target.x && c.y===target.y);
+    if (cand) {
+      const cb = targetingMode.cb;
+      targetingMode = null;
+      cb(cand);
+    }
+  }
+}
+
+function escapeHtml(str) {
+  if (str===undefined||str===null) return '';
+  const s = String(str);
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+function startPendingAction(unit, cost, _typeTag) {
+  unit._pendingCost = cost;
+}
+function cancelPendingAction(unit) {
+  if (!unit) return;
+  delete unit._pendingCost;
+  delete unit._pendingType;
+}
+function confirmPendingAction(unit) {
+  if (!unit || unit._pendingCost==null || unit._pendingCost===undefined) return;
+  const c = unit._pendingCost;
+  consumeAction(unit, c);
+  cancelPendingAction(unit);
+}
+
+/** 入力中の奥義／スキルを強制クローズ（未消費で解除） */
+function abortExecutingAbility() {
+  document.getElementById('dir-panel').classList.remove('active');
+  cancelPendingAction(targetingMode?.caster || state.pendingAbilityCaster);
+  delete state.placeTrapsAbortHandler;
+  targetingMode = null;
+  state.phase = 'battle';
+  if (state._execResolve && !state._execResolved) {
+    state._execResolved = true;
+    const r = state._execResolve;
+    state._execResolve = null;
+    try { r(); } catch (_) {}
+  }
+  state.pendingAbilityCaster = null;
+}
+
+function battleCancelSelection() {
+  if (!state) return;
+  hideTooltip();
+  const modal=document.getElementById('modal');
+  if (modal?.classList.contains('active')) return;
+  const dirOpen = document.getElementById('dir-panel').classList.contains('active');
+  if (state.selectedAction && !dirOpen && state.phase!=='targeting') {
+    state.selectedAction = null;
+    log('選択をキャンセルしました', 'info');
+    renderBattle(); return;
+  }
+  if (dirOpen || state.phase==='targeting' || ((state._execResolve && !state._execResolved))) {
+    abortExecutingAbility();
+    log('入力をキャンセルしました', 'info');
+    renderBattle(); return;
+  }
+  if (state.peekUnitId!=null) {
+    state.peekUnitId = null;
+    renderBattle(); return;
+  }
+}
+
+function refreshCancelStrip() {
+  if (!state) return;
+  const st=document.getElementById('cancel-strip'), msg=document.getElementById('cancel-strip-msg');
+  if (!st||!msg) return;
+  const dir=document.getElementById('dir-panel').classList.contains('active');
+  let show=false, txt='';
+  if (dir) { show=true; txt='方向選択中'; }
+  else if (state.selectedAction?.type==='move') { show=true; txt='緑マスへ移動'; }
+  else if (state.selectedAction?.type==='attack') { show=true; txt='赤マスを攻撃'; }
+  else if (state.phase==='targeting' && targetingMode) {
+    show=true; txt=(targetingMode.hint||(targetingMode.anyCell?'マス選択':'対象選択'));
+  } else if (state._execResolve && !state._execResolved) { show=true; txt='スキル／奥義入力'; }
+  if (!show||(state.mode==='ai'&&state.currentPlayer===1)){ st.classList.remove('visible'); return; }
+  msg.textContent=txt+' （Esc)';
+  st.classList.add('visible');
+}
+
+function closeBattlePeek(){ state.peekUnitId=null; renderBattle(); }
+
+function positionBattleFloatForUnit(unit){
+  const float=document.getElementById('battle-float');
+  if (!unit||!float||!float.classList.contains('visible')) return;
+  const cell=document.querySelector(`#board .cell-at[data-x="${unit.x}"][data-y="${unit.y}"]`);
+  const anchor=cell||document.getElementById('board');
+  if (!anchor)return;
+  float.style.opacity='0.01'; float.offsetWidth;
+  const r=anchor.getBoundingClientRect(), w=float.offsetWidth||288, h=float.offsetHeight||260;
+  let left=r.right+12, top=r.top;
+  const pad=12, vw=window.innerWidth;
+  if (left+w>vw-pad) left=Math.max(pad, r.left-w-12);
+  if (top+h>window.innerHeight-pad) top=Math.max(pad, window.innerHeight-h-pad);
+  float.style.left=left+'px'; float.style.top=top+'px'; float.style.opacity='1';
+}
+
+function compactUnitBlocks(u, detailedSense, stripSkillOugiSummary=false){
+  const c=u.char;
+  const ps=portraitSrc(u.charId);
+  const ph=ps? `<img class="bf-portrait" src="${escapeHtml(ps)}" alt="">`:'';
+  const s=detailedSense? `<div class="bf-row" style="font-size:12px;color:var(--dim);margin-top:4px;line-height:1.4">${escapeHtml(c.sense?.desc||'')}</div>` : '';
+  const status=`${u.moved?'移動済 ':'移動OK '}／ ${u.acted&&!u.extraAction?'行動済':'攻撃など可能'}`;
+  let abRows = '';
+  if (!stripSkillOugiSummary)
+    abRows = `<div class="bf-row"><strong>ス</strong>${escapeHtml(c.skill?.name||'-')}</div>
+<div class="bf-row"><strong>奥</strong>${escapeHtml(c.ougi?.name||'-')}</div>`;
+  return `${ph}<div class="bf-title">${escapeHtml(u.name)}</div>
+<div class="bf-row">${escapeHtml(c.role||'')}｜HP ${u.hp}/${u.maxHp}｜<span class="bf-ap">AP${u.ap}</span></div>
+<div class="bf-row">${status}</div>
+<div class="bf-row">移${u.move} 射${u.range?.[0]??1}${(u.range?.[1]??1)!==(u.range?.[0]??1)?'〜'+u.range[1]:''}</div>
+${abRows}<div class="bf-row"><strong>セ</strong>${escapeHtml(c.sense?.name||'-')}</div>${s}`;
+}
+
+function updateBattleFloatingUI(){
+  if (!state) return;
+  const float=document.getElementById('battle-float');
+  if (float) { float.classList.remove('visible'); float.innerHTML=''; }
+  const actions=document.getElementById('battle-actions');
+  if (!actions) { refreshCancelStrip(); return; }
+  actions.innerHTML='';
+  const sc=document.getElementById('screen-battle');
+  if(!sc?.classList.contains('active')){ refreshCancelStrip(); return; }
+  if(state.mode==='ai'&&state.currentPlayer===1){ refreshCancelStrip(); return; }
+  const dir=document.getElementById('dir-panel').classList.contains('active');
+
+  if(state.phase==='targeting'&&targetingMode){
+    actions.innerHTML=`<div class="side-hint">${escapeHtml(targetingMode.hint||(targetingMode.anyCell?'マス':'対象'))}を選択</div>
+<button type="button" onclick="battleCancelSelection()">キャンセル</button>`;
+    refreshCancelStrip();
+    return;
+  }
+  if(dir){refreshCancelStrip();return;}
+  if(state.peekUnitId!=null){
+    const u=findUnit(state.peekUnitId);
+    if(!u||!u.alive){state.peekUnitId=null;return;}
+    const rangeText = `${u.range[0]}${u.range[1]!==u.range[0]?'〜'+u.range[1]:''}`;
+    const c = u.char;
+    const icon = (name, cls='action-icon') => `<img class="${cls}" src="img/icons/${name}.png?v=20260501" alt="">`;
+    actions.innerHTML=`<button type="button" disabled>
+  <span class="action-label">${icon('attack')}<strong>通常攻撃 [1AP]</strong></span>
+  <span class="side-desc">射程${escapeHtml(rangeText)}の敵1体を攻撃</span>
+</button>
+<button type="button" disabled>
+  <span class="action-label">${icon('skill')}<strong>スキル [2AP]</strong></span>
+  <span class="side-desc">${escapeHtml(c.skill?.name||'-')}<br>${escapeHtml(c.skill?.desc||'')}</span>
+</button>
+<button type="button" disabled>
+  <span class="action-label">${icon('ougi')}<strong>奥義 [3AP]</strong></span>
+  <span class="side-desc">${escapeHtml(c.ougi?.name||'-')}<br>${escapeHtml(c.ougi?.desc||'')}</span>
+</button>
+<div class="side-desc">
+  <strong>センス</strong>
+  ${escapeHtml(c.sense?.name||'-')}<br>${escapeHtml(c.sense?.desc||'')}
+</div>`;
+    refreshCancelStrip(); return;
+  }
+  if(!state.currentUnit){refreshCancelStrip();return;}
+  const u=findUnit(state.currentUnit);
+  if(!u||!u.alive||u.owner!==state.currentPlayer){refreshCancelStrip();return;}
+  const actedTag=u.acted&&!u.extraAction?' 済':'';
+  const icon = (name, cls='action-icon') => `<img class="${cls}" src="img/icons/${name}.png?v=20260501" alt="">`;
+  if(state.selectedAction && state.selectedAction.type!=='move'){
+    const lab=state.selectedAction.type==='move'?'緑マスをクリック':'赤マスをクリックして攻撃';
+    actions.innerHTML=`<div class="side-hint">${lab}</div><button type="button" onclick="battleCancelSelection()">キャンセル</button>`;
+    refreshCancelStrip(); return;
+  }
+  const atk=canTakeAction(u,COST_ATTACK);
+  const sk=canTakeAction(u,COST_SKILL);
+  const og=canTakeAction(u,COST_OUGI);
+  const rangeText = `${u.range[0]}${u.range[1]!==u.range[0]?'〜'+u.range[1]:''}`;
+  const c = u.char;
+  actions.innerHTML=`<button type="button" ${atk?'':'disabled'} onclick="actionAttack()">
+  <span class="action-label">${icon('attack')}<strong>通常攻撃 [1AP]${actedTag}</strong></span>
+  <span class="side-desc">射程${escapeHtml(rangeText)}の敵1体を攻撃</span>
+</button>
+<button type="button" ${sk?'':'disabled'} onclick="actionSkill()">
+  <span class="action-label">${icon('skill')}<strong>スキル [2AP]${actedTag}</strong></span>
+  <span class="side-desc">${escapeHtml(c.skill?.name||'-')}<br>${escapeHtml(c.skill?.desc||'')}</span>
+</button>
+<button type="button" class="${og?'primary':''}" ${og?'':'disabled'} onclick="actionOugi()">
+  <span class="action-label">${icon('ougi')}<strong>奥義 [3AP]${actedTag}</strong></span>
+  <span class="side-desc">${escapeHtml(c.ougi?.name||'-')}<br>${escapeHtml(c.ougi?.desc||'')}</span>
+</button>
+<div class="side-desc">
+  <strong>センス</strong>
+  ${escapeHtml(c.sense?.name||'-')}<br>${escapeHtml(c.sense?.desc||'')}
+</div>`;
+  refreshCancelStrip();
+}
+
+function deselectCurrentUnit(){ state.peekUnitId=null; state.currentUnit=null; state.selectedAction=null; renderBattle(); }
+
+function canTakeAction(unit, cost) {
+  if (unit.extraAction) return true;
+  // 鵜苫翡翠 センス: 沼端と周囲3マス以内ならスキルはノーコスト/枠外
+  if (cost===COST_SKILL && unit.charId===3 && unit.freeSkillToken) return true;
+  if (unit.acted) return false;
+  return unit.ap >= cost;
+}
+function consumeAction(unit, cost) {
+  if (unit.extraAction) { return; }
+  if (cost===COST_SKILL && unit.charId===3 && unit.freeSkillToken) {
+    unit.freeSkillToken = false;
+    log(`${unit.name}の代替スキル(貴方とならどこまでも)発動！スキルをノーコストで使用`, 'skill');
+    return;
+  }
+  unit.ap -= cost;
+  unit.acted = true;
+}
+function actionMove() {
+  const unit = findUnit(state.currentUnit);
+  if (unit.moved && !unit.extraMove) { log('このターンは既に移動済み', 'info'); return; }
+  const cells = getReachableCells(unit);
+  state.selectedAction = { type:'move', options:{cells, attackCells:getMoveAttackArea(unit, cells)} };
+  renderBattle();
+}
+function actionAttack() {
+  const unit = findUnit(state.currentUnit);
+  if (!canTakeAction(unit, COST_ATTACK)) { log('行動ポイント不足、または既に行動済み', 'info'); return; }
+  const cells = getAttackRange(unit);
+  if (cells.length===0) { log('攻撃対象なし', 'info'); return; }
+  state.selectedAction = { type:'attack', options:{cells} };
+  renderBattle();
+}
+function actionSkill() {
+  const unit = findUnit(state.currentUnit);
+  if (!unit) return;
+  if (unit.char.skill.kind==='passive') { log('このスキルはパッシブ（説明のみ）です', 'info'); return; }
+  if (unit._pendingCost!=null) return;
+  if (!canTakeAction(unit, COST_SKILL)) { log('行動ポイント不足、または既に行動済み', 'info'); return; }
+  startPendingAction(unit, COST_SKILL);
+  fxSkill(unit.x, unit.y);
+  executeSkill(unit).then(()=>renderBattle());
+}
+function actionOugi() {
+  const unit = findUnit(state.currentUnit);
+  if (!unit) return;
+  if (unit._pendingCost!=null) return;
+  if (!canTakeAction(unit, COST_OUGI)) { log('行動ポイント不足、または既に行動済み', 'info'); return; }
+  startPendingAction(unit, COST_OUGI);
+  fxOugi(unit.x, unit.y);
+  executeOugi(unit).then(()=>renderBattle());
+}
+function actionWait() {
+  const unit = findUnit(state.currentUnit);
+  unit.moved = true;
+  unit.acted = true;
+  state.currentUnit = null;
+  state.selectedAction = null;
+  log(`${unit.name}は待機`, 'info');
+  renderBattle();
+}
+
+// ==================================================
+// AI
+// ==================================================
+function aiCanUseAbility(unit, ability) {
+  if (!ability || ability.kind==='passive') return false;
+  if (['selectEnemy','selectAlly','selectMaleAlly','selectAny','selectCell'].includes(ability.kind)) {
+    return skillTargets(unit, ability).length > 0;
+  }
+  if (ability.kind==='selectDirection') return aliveEnemies(unit.owner).length > 0;
+  if (ability.kind==='auto' && ability.rng) {
+    const [mn,mx] = ability.rng;
+    return aliveEnemies(unit.owner).some(e=>{
+      const d = Math.abs(e.x-unit.x) + Math.abs(e.y-unit.y);
+      return d>=mn && d<=mx;
+    });
+  }
+  return true;
+}
+
+async function aiTurn() {
+  // Iterate over all alive AI units once each
+  const queue = aliveAllies(1).slice();
+  for (const unit of queue) {
+    if (!unit.alive) continue;
+    state.currentUnit = unit.id;
+    renderBattle();
+    await sleep(350);
+    const enemies = aliveEnemies(1);
+    if (enemies.length===0) break;
+    const nearest = enemies.reduce((a,b)=>dist(unit,a)<=dist(unit,b)?a:b);
+    // Move closer first if not already in attack range
+    const atkBefore = getAttackRange(unit);
+    if (!unit.moved && atkBefore.length===0) {
+      const reach = getReachableCells(unit);
+      if (reach.length>0) {
+        const best = reach.reduce((a,b)=>dist(a,nearest)<=dist(b,nearest)?a:b);
+        moveUnit(unit, best.x, best.y);
+        await sleep(250);
+      }
+    }
+    // Decide action by AP priority, but skip abilities that have no valid target.
+    if (canTakeAction(unit, COST_OUGI) && aiCanUseAbility(unit, unit.char.ougi)) {
+      consumeAction(unit, COST_OUGI);
+      await executeOugi(unit);
+    } else if (canTakeAction(unit, COST_SKILL) && aiCanUseAbility(unit, unit.char.skill)) {
+      consumeAction(unit, COST_SKILL);
+      await executeSkill(unit);
+    } else if (canTakeAction(unit, COST_ATTACK)) {
+      const atk = getAttackRange(unit);
+      if (atk.length>0) {
+        const t = atk.reduce((a,b)=>{
+          const ua = unitAt(a.x,a.y), ub = unitAt(b.x,b.y);
+          return ua.hp<=ub.hp?a:b;
+        });
+        const tu = unitAt(t.x,t.y);
+        consumeAction(unit, COST_ATTACK);
+        attackUnit(unit, tu);
+      }
+    }
+    // If still hasn't moved and not in melee, try to advance
+    if (!unit.moved) {
+      const reach = getReachableCells(unit);
+      if (reach.length>0) {
+        const best = reach.reduce((a,b)=>dist(a,nearest)<=dist(b,nearest)?a:b);
+        moveUnit(unit, best.x, best.y);
+      }
+    }
+    if (checkVictory()) return;
+    await sleep(300);
+  }
+  endPlayerTurn();
+}
+
+function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
+
+function aiBuildTeam() {
+  const all = CHARACTERS.map(c=>c.id);
+  for (let i=all.length-1;i>0;i--) { const j=Math.floor(Math.random()*(i+1)); [all[i],all[j]]=[all[j],all[i]]; }
+  return all.slice(0, TEAM_SIZE);
+}
+function aiPlaceTeam(ids) {
+  const positions = [];
+  for (let y=0;y<3;y++) for (let x=0;x<BOARD_W;x++) positions.push({x,y});
+  for (let i=positions.length-1;i>0;i--) { const j=Math.floor(Math.random()*(i+1)); [positions[i],positions[j]]=[positions[j],positions[i]]; }
+  ids.forEach((id,i)=>{
+    const p = positions[i];
+    state.units.push(createUnit(id, 1, p.x, p.y));
+  });
+}
+
+// ==================================================
+// UI RENDERING
+// ==================================================
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+function startGame(mode) {
+  state = initState(mode);
+  state.phase = 'team';
+  state.selecting = 0;
+  renderTeamSelect();
+  showScreen('screen-team');
+}
+
+function goTitle() {
+  state = null;
+  showScreen('screen-title');
+}
+
+// ----- TEAM SELECT -----
+function ensureHumanTeamFilledRandom(playerIndex) {
+  const p = state.players[playerIndex];
+  if (p.team.length === 0) p.team = aiBuildTeam();
+  if (!Array.isArray(p.teamSwapIds)) p.teamSwapIds = [];
+}
+
+// 交換モード中かどうか
+function _teamInSwapMode() {
+  return state._teamSwapMode === true;
+}
+
+function renderTeamSelect() {
+  ensureHumanTeamFilledRandom(state.selecting);
+  const p = state.players[state.selecting];
+  document.getElementById('team-title').textContent =
+    (state.selecting===0 ? 'プレイヤー1' : 'プレイヤー2') + ' チーム確認';
+
+  // ----- カードエリア -----
+  const area = document.getElementById('team-cards');
+  area.innerHTML = '';
+  const swapSet = new Set(p.teamSwapIds || []);
+  p.team.forEach(id => {
+    const c = CHARACTERS.find(ch => ch.id === id);
+    const card = document.createElement('div');
+    card.className = 'team-card' + (_teamInSwapMode() ? ' swappable' : '');
+    if (swapSet.has(id)) card.classList.add('marked');
+    const psrc = portraitSrc(id);
+    card.innerHTML = `
+      ${psrc ? `<img class="tc-portrait tc-char-${id}" src="${psrc}" alt="">` : ''}
+      ${swapSet.has(id) ? '<div class="tc-swap-flag">交換</div>' : ''}
+      <div class="tc-body">
+        <div class="tc-name">${c.name}</div>
+        <div class="tc-role"><span class="tag ${c.team}">${c.affil}</span> ${c.role}</div>
+        <div class="tc-stats">HP${c.hp} 移動${c.move} 射程${c.range[0]}${c.range[1]!==c.range[0]?'〜'+c.range[1]:''}</div>
+      </div>`;
+    if (_teamInSwapMode()) {
+      card.onclick = () => {
+        const idx = p.teamSwapIds.indexOf(id);
+        if (idx >= 0) p.teamSwapIds.splice(idx, 1);
+        else p.teamSwapIds.push(id);
+        renderTeamSelect();
+      };
+    }
+    area.appendChild(card);
+  });
+
+  // ----- ボタンエリア -----
+  const acts = document.getElementById('team-actions');
+  acts.innerHTML = '';
+  if (!_teamInSwapMode()) {
+    // 通常モード
+    const btnPlace = document.createElement('button');
+    btnPlace.className = 'primary';
+    btnPlace.textContent = '配置へ進む';
+    btnPlace.onclick = () => confirmTeam();
+    acts.appendChild(btnPlace);
+    if (p.teamRedealLeft > 0) {
+      const btnSwap = document.createElement('button');
+      btnSwap.textContent = '交換する（1回のみ）';
+      btnSwap.onclick = () => {
+        state._teamSwapMode = true;
+        p.teamSwapIds = [];
+        renderTeamSelect();
+      };
+      acts.appendChild(btnSwap);
+    } else {
+      const used = document.createElement('span');
+      used.className = 'dim';
+      used.textContent = '交換は使用済み';
+      acts.appendChild(used);
+    }
+  } else {
+    // 交換選択モード
+    const hint = document.createElement('span');
+    hint.className = 'dim';
+    hint.style.fontSize = '13px';
+    hint.textContent = '交換したいカードをクリックして選択';
+    acts.appendChild(hint);
+    const btnExec = document.createElement('button');
+    btnExec.className = 'primary';
+    btnExec.disabled = (p.teamSwapIds||[]).length === 0;
+    btnExec.textContent = `選択したカードを交換（${(p.teamSwapIds||[]).length}枚）`;
+    btnExec.onclick = () => execTeamSwap();
+    acts.appendChild(btnExec);
+    const btnCancel = document.createElement('button');
+    btnCancel.textContent = 'キャンセル';
+    btnCancel.onclick = () => {
+      state._teamSwapMode = false;
+      p.teamSwapIds = [];
+      renderTeamSelect();
+    };
+    acts.appendChild(btnCancel);
+  }
+}
+
+function execTeamSwap() {
+  const p = state.players[state.selecting];
+  const swapIds = p.teamSwapIds || [];
+  if (swapIds.length === 0) return;
+  // 手持ち以外からランダムに新規抽選（既存の残留組は除外）
+  const keep = p.team.filter(id => !swapIds.includes(id));
+  const pool = CHARACTERS.map(c => c.id).filter(id => !keep.includes(id));
+  for (let i = pool.length-1; i > 0; i--) { const j=Math.floor(Math.random()*(i+1)); [pool[i],pool[j]]=[pool[j],pool[i]]; }
+  const newOnes = pool.slice(0, swapIds.length);
+  // 元の順序を保ちつつ置換
+  p.team = p.team.map(id => swapIds.includes(id) ? newOnes.splice(0,1)[0] : id);
+  p.teamRedealLeft--;
+  p.teamSwapIds = [];
+  state._teamSwapMode = false;
+  renderTeamSelect();
+}
+
+function confirmTeam() {
+  state._teamSwapMode = false;
+  state.players[state.selecting].ready = true;
+  if (state.mode==='ai' && state.selecting===0) {
+    state.players[1].team = aiBuildTeam();
+    state.players[1].ready = true;
+    state.selecting = 0;
+    startPlacement();
+  } else if (state.selecting===0 && state.mode==='pvp') {
+    state.selecting = 1;
+    renderTeamSelect();
+  } else {
+    state.selecting = 0;
+    startPlacement();
+  }
+}
+
+// ----- PLACEMENT -----
+function startPlacement() {
+  state.phase = 'place';
+  state.placing = null;
+  state.placedIds = new Set();
+  renderPlacement();
+  showScreen('screen-placement');
+}
+function unplaceCurrentPlayerUnit(charId) {
+  const idx = state.units.findIndex(u=>u.owner===state.selecting && u.charId===charId);
+  if (idx < 0) return false;
+  state.units.splice(idx, 1);
+  state.placedIds.delete(charId);
+  state.placing = charId;
+  return true;
+}
+function renderPlaceInfo(charId) {
+  const box = document.getElementById('place-info');
+  if (!box) return;
+  const c = CHARACTERS.find(ch=>ch.id===charId);
+  if (!c) { box.innerHTML = '<span class="dim">キャラをクリックすると情報を表示</span>'; return; }
+  const psrc = portraitSrc(charId);
+  const rangeText = `${c.range[0]}${c.range[1]!==c.range[0]?'〜'+c.range[1]:''}`;
+  box.innerHTML = `
+    ${psrc ? `<img class="info-portrait" src="${psrc}" alt="">` : ''}
+    <div style="font-weight:bold;font-size:15px;line-height:1.3;color:var(--gold)">${c.name}</div>
+    <div class="dim">${c.affil||''} / ${c.role}</div>
+    <div style="margin-top:5px">HP ${c.hp} / 移動${c.move} / 射程${rangeText}</div>
+    <div class="info-section">
+      <div class="info-label">スキル [2AP]</div>
+      <div class="info-name">${c.skill?.name||'-'}</div>
+      <div class="skill-desc">${c.skill?.desc||''}</div>
+    </div>
+    <div class="info-section">
+      <div class="info-label">奥義 [3AP]</div>
+      <div class="info-name">${c.ougi?.name||'-'}</div>
+      <div class="skill-desc">${c.ougi?.desc||''}</div>
+    </div>
+    <div class="info-section">
+      <div class="info-label">センス</div>
+      <div class="info-name">${c.sense?.name||'-'}</div>
+      <div class="skill-desc">${c.sense?.desc||''}</div>
+    </div>
+  `;
+}
+function renderPlacement() {
+  document.getElementById('place-title').textContent =
+    state.selecting===0?'プレイヤー1 配置':(state.mode==='ai'?'CPU 配置中…':'プレイヤー2 配置');
+  const bench = document.getElementById('bench');
+  const team = state.players[state.selecting].team;
+  bench.innerHTML=`<h3>あなたのチーム（${team.length}名）</h3>`;
+  team.forEach(id=>{
+    const c = CHARACTERS.find(ch=>ch.id===id);
+    const div = document.createElement('div');
+    div.className = 'slot';
+    if (state.placing===id) div.classList.add('active');
+    if (state.placedIds.has(id)) div.classList.add('done');
+    const tag = state.placing===id ? '▶ 配置待ち ' : (state.placedIds.has(id) ? '✓ 配置済み ' : '');
+    const psrc = portraitSrc(id);
+    const pimg = psrc ? `<img class="bench-face" src="${psrc}" alt="">`:'';
+    div.innerHTML = `<div class="bench-row">${pimg}<div><b>${tag}${c.name}</b><br><span style="font-size:10px;opacity:0.7">${c.role} / HP${c.hp} / 移動${c.move} / 射程${c.range[0]}${c.range[1]!==c.range[0]?'〜'+c.range[1]:''}</span></div></div>`;
+    div.onclick = ()=>{
+      renderPlaceInfo(id);
+      if (state.placedIds.has(id)) {
+        unplaceCurrentPlayerUnit(id);
+        renderPlacement();
+        return;
+      }
+      state.placing = id;
+      renderPlacement();
+    };
+    bench.appendChild(div);
+  });
+  const pb = document.getElementById('place-board');
+  pb.innerHTML='';
+  const board = document.createElement('div');
+  board.className='board placement-board use-board-bg';
+  for (let y=0;y<BOARD_H;y++) for (let x=0;x<BOARD_W;x++) {
+    const cell = document.createElement('div');
+    cell.className='cell';
+    cell.classList.add(y<4 ? 'visual-red-zone' : 'visual-blue-zone');
+    const zone = (state.selecting===0 && y>=BOARD_H-3) || (state.selecting===1 && y<3);
+    if (state.selecting===0 && y>=BOARD_H-3) cell.classList.add('p1zone');
+    if (state.selecting===1 && y<3) cell.classList.add('p2zone');
+    const u = state.units.find(u=>u.x===x && u.y===y);
+    if (u) {
+      const udiv = document.createElement('div');
+      udiv.className='unit '+(u.owner===0?'p1':'p2');
+      const psrc = portraitSrc(u.charId);
+      if (psrc) udiv.classList.add('has-face');
+      const face = psrc ? `<img class="unit-face" src="${psrc}" alt="" draggable="false"><div class="unitshade"></div>` : '';
+      udiv.innerHTML = `${face}<div class="uname">${u.name}</div>`;
+      udiv.onclick = (e)=>{
+        e.stopPropagation();
+        renderPlaceInfo(u.charId);
+        if (u.owner !== state.selecting) return;
+        unplaceCurrentPlayerUnit(u.charId);
+        renderPlacement();
+      };
+      cell.appendChild(udiv);
+    }
+    if (zone && !u && state.placing) {
+      cell.classList.add('place-ready');
+      cell.onclick = ()=>{
+        state.units.push(createUnit(state.placing, state.selecting, x, y));
+        state.placedIds.add(state.placing);
+        state.placing = null;
+        renderPlacement();
+      };
+    }
+    board.appendChild(cell);
+  }
+  pb.appendChild(board);
+  const confirmBtn = document.getElementById('place-confirm');
+  confirmBtn.disabled = state.placedIds.size!==TEAM_SIZE;
+}
+function confirmPlacement() {
+  if (state.selecting===0 && state.mode==='pvp') {
+    state.selecting = 1;
+    state.placedIds = new Set();
+    state.placing = null;
+    renderPlacement();
+  } else if (state.selecting===0 && state.mode==='ai') {
+    // CPU の配置を直接行いバトル開始
+    aiPlaceTeam(state.players[1].team);
+    log(`CPUが${state.players[1].team.length}体を配置完了`, 'info');
+    state.selecting = 0;
+    showScreen('screen-battle');
+    startBattle();
+    renderBattle();
+  } else {
+    state.selecting = 0;
+    showScreen('screen-battle');
+    startBattle();
+    renderBattle();
+  }
+}
+
+// ----- BATTLE -----
+function renderBattle() {
+  const board = document.getElementById('board');
+  board.className = 'board board-battle use-board-bg';
+  board.innerHTML = '';
+  const highlightCells = new Set();
+  const threatCells = new Set();
+  const highlightType = state.selectedAction?.type || (targetingMode?.kind||null);
+  let highlightClass = '';
+  if (state.selectedAction?.type==='move') highlightClass = 'highlight-move';
+  else if (state.selectedAction?.type==='attack') highlightClass = 'highlight-attack';
+  if (state.selectedAction?.options?.cells) {
+    state.selectedAction.options.cells.forEach(c=>highlightCells.add(`${c.x},${c.y}`));
+  }
+  if (state.selectedAction?.type==='move' && state.selectedAction?.options?.attackCells) {
+    state.selectedAction.options.attackCells.forEach(c=>threatCells.add(`${c.x},${c.y}`));
+  }
+  if (state.peekUnitId != null) {
+    const pk = findUnit(state.peekUnitId);
+    if (pk && pk.alive) {
+      const cells = getReachableCells(pk);
+      cells.forEach(c=>highlightCells.add(`${c.x},${c.y}`));
+      getMoveAttackArea(pk, cells).forEach(c=>threatCells.add(`${c.x},${c.y}`));
+      highlightClass = 'highlight-move';
+    }
+  }
+  if (targetingMode && targetingMode.candidates) {
+    targetingMode.candidates.forEach(c=>highlightCells.add(`${c.x},${c.y}`));
+    highlightClass = targetingMode.kind==='unit'?'highlight-attack':'highlight-skill';
+  }
+  if (targetingMode && targetingMode.anyCell) {
+    for (let y2=0;y2<BOARD_H;y2++) for (let x2=0;x2<BOARD_W;x2++) {
+      if (!unitAt(x2,y2) && !state.traps.some(t=>t.x===x2 && t.y===y2)) highlightCells.add(`${x2},${y2}`);
+    }
+    highlightClass = 'highlight-cell';
+  }
+  for (let y=0;y<BOARD_H;y++) for (let x=0;x<BOARD_W;x++) {
+    const cell = document.createElement('div');
+    cell.className = 'cell cell-at';
+    cell.classList.add(y<4 ? 'visual-red-zone' : 'visual-blue-zone');
+    cell.dataset.x = String(x);
+    cell.dataset.y = String(y);
+    if (y>=BOARD_H-3) cell.classList.add('p1zone');
+    if (y<3) cell.classList.add('p2zone');
+    const key = `${x},${y}`;
+    if (threatCells.has(key) && !highlightCells.has(key)) cell.classList.add('highlight-threat');
+    if (highlightCells.has(key)) cell.classList.add(highlightClass);
+    // traps
+    if (state.traps.some(t=>t.x===x && t.y===y)) {
+      const s=document.createElement('div'); s.className='slash'; cell.appendChild(s);
+    }
+    const u = unitAt(x,y);
+    if (u) {
+      const udiv = document.createElement('div');
+      udiv.className = 'unit '+(u.owner===0?'p1':'p2');
+      const psrc = portraitSrc(u.charId);
+      if (psrc) udiv.classList.add('has-face');
+      if (u.moved && u.acted) udiv.classList.add('acted');
+      if (state.currentUnit===u.id) udiv.classList.add('current');
+      if (!u.alive) udiv.classList.add('dead');
+      const face = psrc ? `<img class="unit-face" src="${psrc}" alt="" draggable="false"><div class="unitshade"></div>` : '';
+      udiv.innerHTML = `${face}
+        <div class="uname">${u.name}</div>
+        <div class="hpbar"><div style="width:${(u.hp/u.maxHp)*100}%"></div></div>
+        <div class="ougi">AP${u.ap}</div>
+        <div class="effects">${renderEffectBadges(u)}</div>
+      `;
+      udiv.onclick = (e)=>{ e.stopPropagation(); selectUnit(u); };
+      udiv.onmouseenter = (e)=>showTooltip(e, u.char, u);
+      udiv.onmousemove = (e)=>moveTooltip(e);
+      udiv.onmouseleave = hideTooltip;
+      cell.appendChild(udiv);
+    }
+    cell.onclick = ()=>selectCellClick(x,y);
+    board.appendChild(cell);
+  }
+  document.getElementById('action-panel').style.display = 'none';
+  if (state.peekUnitId != null) {
+    const pk = findUnit(state.peekUnitId);
+    if (pk) showUnitInfo(pk);
+    else {
+      document.getElementById('battle-basic-info').textContent = '敵情報';
+      document.getElementById('unit-info').textContent = '';
+    }
+  } else if (state.currentUnit) {
+    const ub = findUnit(state.currentUnit);
+    if (ub) showUnitInfo(ub);
+  } else {
+    document.getElementById('battle-basic-info').innerHTML =
+      '<span class="dim" style="font-size:13px;line-height:1.5;">味方または敵を盤からクリック。操作は右メニューに表示されます。</span>';
+    document.getElementById('unit-info').innerHTML = '';
+  }
+  requestAnimationFrame(()=>{ updateBattleFloatingUI(); refreshCancelStrip(); });
+}
+
+function renderEffectBadges(u) {
+  const tags=[];
+  const eff = u.effects;
+  const map = { immobilize:'移不', paralyze:'麻痺', heavyWound:'重', injured:'負', stealth:'潜', pierce:'刺',
+    doomed:'死', hot:'回', healNext:'回', damageCut:'C', brigant:'ブ', damageBuff:'+', tensinBuff:'神',
+    protected:'ユ', endure1:'耐', mvBuff:'速', shield:'盾', immuneNext:'免', delayedKill:'死予' };
+  eff.forEach(e=>{ if (map[e.type]) tags.push(`<span class="eff">${map[e.type]}</span>`); });
+  if (u.luckyUsed===false && u.charId===14) tags.push('<span class="eff">幸</span>');
+  return tags.join('');
+}
+
+function showUnitInfo(u) {
+  const info = document.getElementById('unit-info');
+  const basic = document.getElementById('battle-basic-info');
+  const c = u.char;
+  const pis = portraitSrc(u.charId);
+  const ip = pis ? `<img class="info-portrait" src="${pis}" alt="">`: '';
+  const rangeText = `${u.range[0]}${u.range[1]!==u.range[0]?'〜'+u.range[1]:''}`;
+  const icon = (name) => `<img class="ui-icon" src="img/icons/${name}.png?v=20260501" alt="">`;
+  const moveIcon = u.moved ? 'action-ng' : 'move-ok';
+  const actionIcon = u.acted ? 'action-ng' : 'action-ok';
+  if (basic) basic.innerHTML = `
+    ${ip}
+    <div style="font-weight:bold;font-size:16px;line-height:1.3">${u.name}</div>
+    <div class="dim">${c.affil||''} / ${c.role}</div>
+    <div class="stat-row">
+      <span class="stat-pill">${icon('hp')}HP ${u.hp}/${u.maxHp}</span>
+      <span class="stat-pill">${icon('ap')}AP <b style="color:var(--gold)">${u.ap}</b></span>
+    </div>
+    <div class="bar hp"><div style="width:${(u.hp/u.maxHp)*100}%"></div></div>
+    <div class="dim battle-move-range">移動${u.move} / 射程${rangeText}</div>
+  `;
+  info.innerHTML = '';
+}
+function renderActionPanel() {
+  const d = document.getElementById('action-panel');
+  if (d) d.style.display = 'none';
+}
+function renderLog() {
+  const box = document.getElementById('log');
+  if (!box) return;
+  box.innerHTML = state.log.slice(-50).map(l=>`<div class="line ${l.cls}">${l.msg}</div>`).join('');
+  box.scrollTop = box.scrollHeight;
+}
+
+// ----- TOOLTIP -----
+function showTooltip(e, c, unit) {
+  const tip = document.getElementById('tooltip');
+  const inBattleGrid = !!(unit && document.getElementById('screen-battle')?.classList.contains('active'));
+  if (inBattleGrid) {
+    hideTooltip();
+    return;
+  }
+  const tp = portraitSrc(c.id);
+  const head = tp ? `<img class="t-portrait" src="${tp}" alt="">`:'';
+  tip.innerHTML = `
+    <div class="tooltip-flex">
+      ${head}
+      <div class="t-body">
+        <div class="t-name">${c.name}</div>
+        <div class="dim">${c.affil||''} / ${c.role}</div>
+        <div class="t-sec"><span class="t-label">スキル:</span> ${c.skill?.name||'-'}<br><span class="dim">${c.skill?.desc||''}</span></div>
+        <div class="t-sec"><span class="t-label">奥義:</span> ${c.ougi?.name||'-'}<br><span class="dim">${c.ougi?.desc||''}</span></div>
+        <div class="t-sec"><span class="t-label">センス:</span> ${c.sense?.name||'-'}<br><span class="dim">${c.sense?.desc||''}</span></div>
+        <div class="t-sec dim" style="font-style:italic">${c.quote||''}</div>
+      </div>
+    </div>
+  `;
+  tip.classList.add('active');
+  moveTooltip(e);
+}
+function moveTooltip(e) {
+  const tip = document.getElementById('tooltip');
+  const x = Math.min(window.innerWidth-340, e.clientX+16);
+  const y = Math.min(window.innerHeight-240, e.clientY+16);
+  tip.style.left = x+'px';
+  tip.style.top = y+'px';
+}
+function hideTooltip(){ document.getElementById('tooltip').classList.remove('active'); }
+
+function showHelp() {
+  document.getElementById('modal-title').textContent = 'ルール説明';
+  document.getElementById('modal-body').innerHTML = `
+    <div style="text-align:left">
+      <ul style="line-height:1.6">
+        <li>8×8 の盤面で 5体 vs 5体 のバトル</li>
+        <li>各プレイヤーのターン開始時に、自軍各キャラに <b>+1AP</b>（行動ポイント）付与</li>
+        <li>各キャラは1ターンに <b>移動1回</b>（AP消費なし）と、以下のいずれか1回:<br>
+          ・通常攻撃 [1AP] / スキル [2AP] / 奥義 [3AP]</li>
+        <li>AP は使わなければ蓄積される（次ターンに +1）</li>
+        <li>センスは常時発動（パッシブ）</li>
+        <li><strong>Esc</strong> または下部のキャンセルで、移動／攻撃／スキル・奥義の入力をキャンセルできます（効果適用前はAPを消費しません）</li>
+        <li>相手チームを全滅させたら勝利</li>
+      </ul>
+    </div>
+  `;
+  document.getElementById('modal').classList.add('active');
+}
+function closeModal() { document.getElementById('modal').classList.remove('active'); }
+
+// Init
+document.addEventListener('keydown', (e)=>{
+  if (e.key !== 'Escape') return;
+  if (!document.getElementById('screen-battle')?.classList.contains('active')) return;
+  if (document.getElementById('modal')?.classList.contains('active')) return;
+  battleCancelSelection();
+});
+window.addEventListener('resize', ()=>{
+  if (!state) return;
+  if (!document.getElementById('screen-battle')?.classList.contains('active')) return;
+  const u = state.currentUnit ? findUnit(state.currentUnit) :
+    (state.peekUnitId != null ? findUnit(state.peekUnitId) : null);
+  if (u) positionBattleFloatForUnit(u);
+});
+showScreen('screen-title');
+// ===== BGM =====
+let bgmStarted = false;
+let bgmMuted = false;
+const bgm = document.getElementById('bgm');
+bgm.volume = 0.45;
+
+function startBGM() {
+  if (bgmStarted || bgmMuted) return;
+  bgm.play().then(()=>{ bgmStarted = true; }).catch(()=>{});
+}
+let volWrapVisible = false;
+function toggleBGM() {
+  const btn = document.getElementById('bgm-btn');
+  const volWrap = document.getElementById('vol-wrap');
+  if (bgmMuted) {
+    bgmMuted = false;
+    bgm.volume = document.getElementById('vol-slider').value / 100;
+    if (!bgmStarted) startBGM();
+    else bgm.play().catch(()=>{});
+    btn.textContent = '🔊';
+    volWrap.style.display = 'flex';
+    volWrapVisible = true;
+  } else {
+    // 2回目クリック：スライダー表示中→非表示、非表示→ミュート
+    if (volWrapVisible) {
+      volWrap.style.display = 'none';
+      volWrapVisible = false;
+    } else {
+      bgmMuted = true;
+      bgm.pause();
+      btn.textContent = '🔇';
+    }
+  }
+}
+function setBGMVol(val) {
+  bgm.volume = val / 100;
+  const btn = document.getElementById('bgm-btn');
+  if (val == 0) {
+    bgmMuted = true;
+    bgm.pause();
+    btn.textContent = '🔇';
+  } else {
+    if (bgmMuted) {
+      bgmMuted = false;
+      if (bgmStarted) bgm.play().catch(()=>{});
+      btn.textContent = '🔊';
+    }
+  }
+}
+// 最初のユーザー操作で自動再生開始
+document.addEventListener('click', function handler() {
+  startBGM();
+  document.removeEventListener('click', handler);
+}, { once: true });
+</script>
+</body>
+</html>
