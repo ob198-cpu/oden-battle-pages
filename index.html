@@ -105,6 +105,9 @@ button:disabled { opacity:0.35; cursor:not-allowed; }
 #screen-placement .place-side { flex:0 0 320px; height:100%; box-sizing:border-box; display:flex; flex-direction:column; gap:8px; padding:10px; background:rgba(5,8,13,0.82); border-left:1px solid rgba(196,142,70,0.45); overflow:hidden; }
 #screen-placement .place-info-side { flex:0 0 var(--place-info-w); min-width:0; height:100%; box-sizing:border-box; display:flex; flex-direction:column; padding:10px; background:rgba(5,8,13,0.82); border-left:1px solid rgba(196,142,70,0.45); overflow-y:auto; }
 #screen-placement .place-side h2 { margin:0; font-size:18px; }
+#screen-placement .place-title-row { display:flex; align-items:center; gap:8px; }
+#screen-placement .place-title-row h2 { flex:1; min-width:0; }
+#screen-placement .place-help-btn { flex:0 0 auto; padding:4px 10px; font-size:12px; min-height:28px; }
 #screen-placement .place-side-actions { display:flex; gap:8px; }
 #screen-placement .place-side-actions button { flex:1; }
 #screen-placement .bench { flex:1 1 auto; min-height:0; overflow-y:auto; background:transparent; padding:0; border-radius:0; }
@@ -114,6 +117,7 @@ button:disabled { opacity:0.35; cursor:not-allowed; }
 #screen-placement .bench .slot.active { background:var(--accent); border-color:var(--gold); box-shadow:0 0 12px rgba(233,69,96,0.6); }
 #screen-placement .bench .slot.done { opacity:0.35; cursor:not-allowed; text-decoration:line-through; }
 #screen-placement .guide { background:rgba(15,20,35,0.75); border:1px solid rgba(196,142,70,0.3); padding:8px 10px; border-radius:6px; margin:0; font-size:12px; line-height:1.55; }
+#screen-placement .guide.closed { display:none; }
 #screen-placement .guide .step { display:inline-block; background:var(--accent); color:#fff; width:22px; height:22px; text-align:center; line-height:22px; border-radius:50%; margin-right:6px; font-weight:bold; }
 #screen-placement #place-info { flex:1; width:100%; align-self:stretch; min-height:0; overflow-x:hidden; overflow-y:auto; background:rgba(5,8,13,0.82); border:1px solid rgba(196,142,70,0.45); border-radius:6px; padding:8px; font-size:12px; line-height:1.45; word-break:break-word; overflow-wrap:anywhere; }
 #screen-placement #place-info .info-portrait { width:100%; max-height:220px; object-fit:contain; object-position:center 15%; border-radius:6px; display:block; margin-bottom:8px; background:#1a1d35; }
@@ -750,12 +754,15 @@ button:disabled { opacity:0.35; cursor:not-allowed; }
         <div id="place-board"></div>
       </div>
       <aside class="place-side">
-        <h2 id="place-title">プレイヤー1 配置</h2>
+        <div class="place-title-row">
+          <h2 id="place-title">プレイヤー1 配置</h2>
+          <button type="button" class="place-help-btn" onclick="togglePlacementGuide()">ヘルプ</button>
+        </div>
         <div class="place-side-actions">
           <button onclick="goTitle()">タイトルへ</button>
           <button id="place-confirm" class="primary" onclick="confirmPlacement()" disabled>開始</button>
         </div>
-        <div class="guide">
+        <div class="guide closed" id="place-guide">
           <span class="step">1</span>右のリストからキャラをクリックして選択<br>
           <span class="step">2</span>自陣エリア<span style="color:#7ab0ff">（青く光るマス）</span>をクリックして配置<br>
           <span class="step">3</span>配置済みキャラをクリックで置き直し
@@ -2822,6 +2829,9 @@ function renderPlaceInfo(charId) {
       <div class="skill-desc">${c.sense?.desc||''}</div>
     </div>
   `;
+}
+function togglePlacementGuide() {
+  document.getElementById('place-guide')?.classList.toggle('closed');
 }
 function renderPlacement() {
   document.getElementById('place-title').textContent =
