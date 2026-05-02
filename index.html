@@ -876,7 +876,7 @@ const CHARACTERS = [
     ougi:{ name:'ベルセルク！', cost:5, desc:'一番近い敵の隣に移動、5ダメ、再行動可能', kind:'auto_self' },
     sense:{ name:'極限反射', desc:'被ダメ時コイン表で回避' } },
   { id:11, name:'東山功', affil:'札幌・第1小隊', team:AFFIL.SAPPORO, role:'サポーター', hp:8, move:1, range:[1,1], quote:'「不可能なんて誰が言ったんです？」',
-    skill:{ name:'見学専門', desc:'直近発動の敵スキル/奥義を使用(簡略化:敵1体に3ダメ)', kind:'selectEnemy', rng:[1,3] },
+    skill:{ name:'見学専門', desc:'直近発動の敵スキル/奥義を再現。記録がなければ敵1体に3ダメ', kind:'selectEnemy', rng:[1,3] },
     ougi:{ name:'才覚の章', cost:5, desc:'全味方の与ダメ+3 (1ターン)', kind:'auto_allies' },
     sense:{ name:'帝国の流血', desc:'隣接味方をHP2回復、隣接敵に2ダメ(ターン開始時)' } },
   { id:12, name:'本輪西夏', affil:'札幌・第1小隊', team:AFFIL.SAPPORO, role:'サポーター', hp:7, move:1, range:[1,2], quote:'「お姉さんが相手になるよう」',
@@ -905,7 +905,7 @@ const CHARACTERS = [
     sense:{ name:'カリアゲクン', desc:'フィールドにホスト(桔梗)がいるとき射程無限' } },
   { id:18, name:'羽帯詩歌', affil:'始祖教', team:AFFIL.SISOKYO, role:'サポーター', hp:6, move:1, range:[1,1], quote:'「全ては、始祖の福音のもとに」',
     skill:{ name:'天理を渥す', desc:'周囲1マスにキョンシー召喚(HP6)。敵は最優先でキョンシーを攻撃', kind:'selectCell', rng:[1,1] },
-    ougi:{ name:'カリスマ', cost:5, desc:'任意敵1Tを操作(簡略:移動不可+3ダメ)', kind:'selectEnemy', rng:[0,99] },
+    ougi:{ name:'カリスマ', cost:5, desc:'任意敵1体を1T操作不能にし、3ダメ', kind:'selectEnemy', rng:[0,99] },
     sense:{ name:'永遠の夜明け', desc:'戦闘不能時1度だけ最大HPで復活' } },
   { id:19, name:'兩伞', affil:'始祖教', team:AFFIL.SISOKYO, role:'フロント', hp:9, move:1, range:[1,1], quote:'「我们在喜欢开心的事」',
     skill:{ name:'大家好！', desc:'周囲2マス敵に3ダメ、移動可能', kind:'selectEnemy', rng:[1,2] },
@@ -916,12 +916,12 @@ const CHARACTERS = [
     ougi:{ name:'给我最好的死法', cost:5, desc:'周囲3マス敵全てに4ダメ、3ターン後死亡', kind:'auto', rng:[1,3] },
     sense:{ name:'天神の称号(反撃)', desc:'攻撃時反撃(射程無視2ダメ)' } },
   { id:21, name:'玩步', affil:'始祖教', team:AFFIL.SISOKYO, role:'フロント', hp:8, move:2, range:[1,1], quote:'「迎えるはずのなかった夜明けは今ここに在る」',
-    skill:{ name:'人間道に生きる者たちへ', desc:'指定敵と自身1T離脱、次ターン戻って自HP3回復、敵に3ダメ(簡略:3ダメ+自2回復)', kind:'selectEnemy', rng:[1,3] },
+    skill:{ name:'人間道に生きる者たちへ', desc:'指定敵と自身1T離脱、次ターン戻って自HP3回復、敵に3ダメ', kind:'selectEnemy', rng:[1,3] },
     ougi:{ name:'大倭の全能', cost:5, desc:'全味方HP3回復、このターン与ダメ+2', kind:'auto_allies' },
     sense:{ name:'未来を引き寄せる力', desc:'2回までダメージ無効' } },
   { id:22, name:'シェカ', affil:'始祖教', team:AFFIL.SISOKYO, role:'サポーター', hp:6, move:2, range:[1,1], quote:'「うぬが行くのならば、どこまでもついて行こう」',
-    skill:{ name:'陰陽返し', desc:'直近受けた敵スキルを返す、1T移動不能付与(簡略:周囲2マス敵1体に3ダメ、移動不可)', kind:'selectEnemy', rng:[1,2] },
-    ougi:{ name:'テレポート', cost:5, desc:'敵1体と味方1体を任意マスへ移動(射程無限/簡略:自身＋敵を隣接交換)', kind:'selectEnemy', rng:[0,99] },
+    skill:{ name:'陰陽返し', desc:'直近受けた敵スキルを返す、1T移動不能付与。記録がなければ周囲2マス敵1体に3ダメ', kind:'selectEnemy', rng:[1,2] },
+    ougi:{ name:'テレポート', cost:5, desc:'敵1体と味方1体の位置を入れ替える', kind:'selectEnemy', rng:[0,99] },
     sense:{ name:'玩步との絆', desc:'味方に玩步がいる場合2ターンに1度再行動' } },
   { id:23, name:'陰陽師・詩歌', affil:'無所属', team:AFFIL.FREE, role:'ミドルアタッカー', hp:7, move:1, range:[2,2], quote:'「許し難き人間たちよ、我が裁こう」',
     skill:{ name:'黄泉巡礼', desc:'敵2体を選択し3ダメ(射程無限/簡略:最もHPの多い2体)', kind:'auto' },
@@ -973,6 +973,7 @@ function initState(mode) {
     actedUnits: new Set(), // ids that already acted this phase
     selectedAction: null, // { type:'move'|'attack'|'skill'|'ougi', options:{...} }
     moveUndo: null, // 直前の通常移動だけ戻すための一時情報
+    lastAbility: null, // 直近に発動したスキル/奥義の簡易コピー用記録
     log: [],
     targetingResolve: null, // callback for targeting
     traps: [] // {x,y,owner,dmg}
@@ -985,10 +986,10 @@ function initState(mode) {
 function dist(a,b) { return Math.max(Math.abs(a.x-b.x), Math.abs(a.y-b.y)); } // Chebyshev for square range
 function manhattan(a,b) { return Math.abs(a.x-b.x)+Math.abs(a.y-b.y); }
 function inBoard(x,y) { return x>=0 && x<BOARD_W && y>=0 && y<BOARD_H; }
-function unitAt(x,y) { return state.units.find(u=>u.alive && u.x===x && u.y===y); }
+function unitAt(x,y) { return state.units.find(u=>u.alive && !u.banished && u.x===x && u.y===y); }
 function findUnit(id) { return state.units.find(u=>u.id===id); }
-function aliveAllies(owner) { return state.units.filter(u=>u.alive && u.owner===owner); }
-function aliveEnemies(owner) { return state.units.filter(u=>u.alive && u.owner!==owner); }
+function aliveAllies(owner) { return state.units.filter(u=>u.alive && !u.banished && u.owner===owner); }
+function aliveEnemies(owner) { return state.units.filter(u=>u.alive && !u.banished && u.owner!==owner); }
 function otherOwner(o){ return 1-o; }
 function coinToss(){ return Math.random()<0.5 ? 'heads':'tails'; }
 function diceRoll(){ return 1+Math.floor(Math.random()*6); }
@@ -1029,12 +1030,41 @@ function tickEffects(unit) {
   // doomed expired
   if (hadDoomed && !hasEffect(unit,'doomed')) { killUnit(unit, '死亡効果'); }
 }
+function processBanishedReturns(owner) {
+  state.units.filter(u=>u.alive && u.owner===owner && u.banishReturn).forEach(u=>{
+    const br = u.banishReturn;
+    const partner = findUnit(br.partnerId);
+    const spots = [
+      {unit:u, x:br.selfX, y:br.selfY},
+      {unit:partner, x:br.targetX, y:br.targetY}
+    ];
+    spots.forEach(s=>{
+      if (!s.unit || !s.unit.alive) return;
+      const blocked = unitAt(s.x, s.y);
+      s.unit.x = blocked ? br.fallbackX : s.x;
+      s.unit.y = blocked ? br.fallbackY : s.y;
+      s.unit.banished = false;
+      s.unit.banishReturn = null;
+    });
+    heal(u, 3);
+    if (partner && partner.alive) applyDamage(partner, 3, {attacker:u});
+    log(`${u.name}たちが戦場に戻った`, 'skill');
+  });
+}
 
 // ==================================================
 // DAMAGE / HEAL PIPELINE (with hooks)
 // ==================================================
 function applyDamage(target, amount, opts={}) {
   if (!target.alive) return 0;
+  if (opts.attacker && opts.attacker.owner!==target.owner && state.currentAbilityContext?.abType==='skill') {
+    target.lastReceivedEnemySkill = {
+      sourceId: opts.attacker.id,
+      sourceName: opts.attacker.name,
+      sourceCharId: opts.attacker.charId,
+      ability: state.currentAbilityContext.ability
+    };
+  }
   // protected (Yggdrasil)
   if (hasEffect(target,'protected')) { log(`${target.name}はユグドラシルで無効`, 'info'); return 0; }
   // 絵笛 ラッキーボーイ (once)
@@ -1189,6 +1219,24 @@ function createUnit(charId, owner, x, y) {
   };
   return unit;
 }
+function createKyonshi(owner, x, y) {
+  const kyonChar = {
+    id:-1, name:'キョンシー', affil:'召喚', team:AFFIL.SISOKYO, role:'召喚',
+    hp:6, move:1, range:[1,1],
+    skill:{name:'-', desc:'-', kind:'passive'},
+    ougi:{name:'-', desc:'-', cost:99, kind:'passive'},
+    sense:{name:'囮', desc:'敵はキョンシーを優先して攻撃する'}
+  };
+  return {
+    id: state.nextUnitId++,
+    charId:-1, owner, x, y,
+    name:'キョンシー',
+    maxHp:6, hp:6,
+    move:1, range:[1,1],
+    ap:0, moved:false, acted:false, extraAction:false,
+    alive:true, effects:[], char:kyonChar, isKyonshi:true
+  };
+}
 
 // Character gender mapping (for 桔梗 / 佐久)
 const FEMALE_IDS = new Set([3,4,5,7,8,10,12,13,14,18,22,23,25]); // approximation
@@ -1312,6 +1360,8 @@ function getAttackRange(unit) {
   }
   // Apply taunt (Hate / 原初の罪)
   const enemies = cells.map(c=>unitAt(c.x,c.y)).filter(Boolean);
+  const kyonshiTargets = enemies.filter(e=>e.isKyonshi);
+  if (kyonshiTargets.length>0) return kyonshiTargets.map(e=>({x:e.x,y:e.y}));
   // 原初の罪: 朔以外を優先 -> means: cannot target 朔(24) if others exist
   const hasSinsOrigin = state.units.some(u=>u.alive && u.charId===24 && u.owner!==unit.owner);
   if (hasSinsOrigin) {
@@ -1473,6 +1523,66 @@ function attackBonus(unit) {
   return b;
 }
 
+function abilityDamageAmount(ab, fallback=3) {
+  const text = `${ab?.desc||''} ${ab?.name||''}`;
+  const m = text.match(/(\d+)ダメ/);
+  return m ? Number(m[1]) : fallback;
+}
+function applyCopiedSideEffects(target, ab) {
+  const text = `${ab?.desc||''} ${ab?.name||''}`;
+  if (/移動不可|移動不能/.test(text)) addEffect(target,{type:'immobilize', duration:2});
+  if (/麻痺/.test(text)) addEffect(target,{type:'paralyze', duration:2});
+  if (/負傷/.test(text)) addEffect(target,{type:'injured', duration:3});
+  if (/重症/.test(text)) addEffect(target,{type:'heavyWound', duration:2});
+}
+function executeCopiedAbility(caster, record, done) {
+  const copied = record?.ability;
+  if (!copied) { done(); return; }
+  const ab = Object.assign({}, copied);
+  const dmg = abilityDamageAmount(ab, 3);
+  log(`${caster.name}は『${record.name}』を見学専門で再現`, 'skill');
+  if (ab.kind==='auto' && ab.rng) {
+    aliveEnemies(caster.owner).filter(e=>dist(caster,e)>=ab.rng[0] && dist(caster,e)<=ab.rng[1]).forEach(e=>{
+      applyDamage(e, dmg, {attacker:caster, isAoe:true});
+      applyCopiedSideEffects(e, ab);
+    });
+    done(); return;
+  }
+  if (ab.kind==='auto_allies') {
+    aliveAllies(caster.owner).forEach(a=>{
+      if (/回復/.test(ab.desc||'')) heal(a, abilityDamageAmount(ab, 3));
+      if (/与ダメ|ダメージ/.test(ab.desc||'')) addEffect(a,{type:'damageBuff', amount:2, duration:2, fromSelf:true});
+    });
+    done(); return;
+  }
+  if (ab.kind==='selectDirection') {
+    chooseDirection(caster, (dx,dy)=>{
+      for (let i=1;i<=5;i++){
+        const tx=caster.x+dx*i, ty=caster.y+dy*i;
+        if (!inBoard(tx,ty)) break;
+        const t = unitAt(tx,ty);
+        if (t && t.owner!==caster.owner) {
+          applyDamage(t, dmg, {attacker:caster, isAoe:true});
+          applyCopiedSideEffects(t, ab);
+          if (!/縦横|範囲|全/.test(ab.desc||'')) break;
+        }
+      }
+      done();
+    });
+    return;
+  }
+  if (ab.kind==='selfBuff') {
+    addEffect(caster,{type:'brigant', duration:2, fromSelf:true});
+    addEffect(caster,{type:'brigantShield', duration:2, fromSelf:true});
+    done(); return;
+  }
+  chooseUnit(caster, skillTargets(caster, Object.assign({}, ab, {kind:'selectEnemy', rng:ab.rng||[1,3]})), (t)=>{
+    applyDamage(t.unit, dmg, {attacker:caster});
+    applyCopiedSideEffects(t.unit, ab);
+    done();
+  });
+}
+
 // ==================================================
 // SKILLS & OUGIS
 // ==================================================
@@ -1519,10 +1629,21 @@ function executeAbility(caster, ab, abType) {
     state._execResolve = resolve;
     state._execResolved = false;
     state.pendingAbilityCaster = caster;
+    state.currentAbilityContext = { caster, ability:ab, abType };
     const done = ()=>{
       if (state._execResolved) return;
       state._execResolved = true;
       delete state.placeTrapsAbortHandler;
+      if (!state.suppressAbilityRecord && caster.charId!==-1) {
+        state.lastAbility = {
+          owner: caster.owner,
+          sourceCharId: caster.charId,
+          name: ab.name,
+          abType,
+          ability: Object.assign({}, ab)
+        };
+      }
+      state.currentAbilityContext = null;
       state._execResolve = null;
       state.pendingAbilityCaster = null;
       confirmPendingAction(caster);
@@ -1599,7 +1720,9 @@ function executeAbility(caster, ab, abType) {
         if (!isOugi) {
           chooseUnit(caster, skillTargets(caster, ab), (t)=>{
             applyDamage(t.unit, 3, {attacker:caster});
-            caster.extraAction = true;
+            caster.extraMove = true;
+            caster.moved = false;
+            log(`${caster.name}は追加移動可能`, 'skill');
             done();
           });
         } else {
@@ -1721,7 +1844,9 @@ function executeAbility(caster, ab, abType) {
         break;
       case 11: // 東山
         if (!isOugi) {
-          chooseUnit(caster, skillTargets(caster, ab), (t)=>{
+          const rec = state.lastAbility && state.lastAbility.owner!==caster.owner ? state.lastAbility : null;
+          if (rec) executeCopiedAbility(caster, rec, done);
+          else chooseUnit(caster, skillTargets(caster, ab), (t)=>{
             applyDamage(t.unit, 3, {attacker:caster});
             done();
           });
@@ -1844,10 +1969,7 @@ function executeAbility(caster, ab, abType) {
       case 18: // 羽帯
         if (!isOugi) {
           chooseCell(caster, skillTargets(caster, ab), (cell)=>{
-            // Summon キョンシー (simple unit with HP6 move1 melee)
-            const kyon = createUnit(-1, caster.owner, cell.x, cell.y);
-            kyon.name='キョンシー'; kyon.maxHp=6; kyon.hp=6; kyon.range=[1,1]; kyon.move=1;
-            kyon.char = {name:'キョンシー', role:'召喚', move:1, range:[1,1], hp:6, skill:{name:'-',desc:'-',kind:'passive'}, ougi:{name:'-',desc:'-',cost:99}, sense:{name:'-',desc:'-'}};
+            const kyon = createKyonshi(caster.owner, cell.x, cell.y);
             state.units.push(kyon);
             log('キョンシー召喚', 'skill');
             done();
@@ -1855,6 +1977,7 @@ function executeAbility(caster, ab, abType) {
         } else {
           chooseUnit(caster, skillTargets(caster, ab), (t)=>{
             addEffect(t.unit,{type:'immobilize', duration:2});
+            addEffect(t.unit,{type:'paralyze', duration:2});
             applyDamage(t.unit,3,{attacker:caster});
             done();
           });
@@ -1862,11 +1985,13 @@ function executeAbility(caster, ab, abType) {
         break;
       case 19: // 兩伞
         if (!isOugi) {
-          chooseUnit(caster, skillTargets(caster, ab), (t)=>{
-            applyDamage(t.unit,3,{attacker:caster});
-            caster.extraAction = true;
-            done();
+          aliveEnemies(caster.owner).filter(e=>dist(caster,e)<=2).forEach(e=>{
+            applyDamage(e,3,{attacker:caster, isAoe:true});
           });
+          caster.extraMove = true;
+          caster.moved = false;
+          log(`${caster.name}は追加移動可能`, 'skill');
+          done();
         } else {
           chooseUnit(caster, skillTargets(caster, ab), (t)=>{
             applyDamage(t.unit,7,{attacker:caster});
@@ -1891,8 +2016,12 @@ function executeAbility(caster, ab, abType) {
       case 21: // 玩步
         if (!isOugi) {
           chooseUnit(caster, skillTargets(caster, ab), (t)=>{
-            applyDamage(t.unit,3,{attacker:caster});
-            heal(caster,2);
+            const target = t.unit;
+            caster.banished = true;
+            target.banished = true;
+            caster.banishReturn = { partnerId:target.id, selfX:caster.x, selfY:caster.y, targetX:target.x, targetY:target.y, fallbackX:caster.x, fallbackY:caster.y };
+            target.banishReturn = { partnerId:caster.id, selfX:target.x, selfY:target.y, targetX:caster.x, targetY:caster.y, fallbackX:target.x, fallbackY:target.y };
+            log(`${caster.name}と${target.name}は一時離脱した`, 'skill');
             done();
           });
         } else {
@@ -1904,20 +2033,31 @@ function executeAbility(caster, ab, abType) {
         break;
       case 22: // シェカ
         if (!isOugi) {
-          chooseUnit(caster, skillTargets(caster, ab), (t)=>{
-            applyDamage(t.unit,3,{attacker:caster});
-            addEffect(t.unit,{type:'immobilize', duration:2});
+          const rec = caster.lastReceivedEnemySkill;
+          const source = rec?.sourceId ? findUnit(rec.sourceId) : null;
+          if (source && source.alive && source.owner!==caster.owner) {
+            applyDamage(source,3,{attacker:caster});
+            addEffect(source,{type:'immobilize', duration:2});
+            log(`${caster.name}は${rec.sourceName}へ陰陽返し`, 'skill');
+            caster.lastReceivedEnemySkill = null;
             done();
-          });
+          } else {
+            chooseUnit(caster, skillTargets(caster, ab), (t)=>{
+              applyDamage(t.unit,3,{attacker:caster});
+              addEffect(t.unit,{type:'immobilize', duration:2});
+              done();
+            });
+          }
         } else {
-          chooseUnit(caster, skillTargets(caster, ab), (t)=>{
-            // swap positions with target
-            const tx=caster.x, ty=caster.y;
-            caster.x=t.unit.x; caster.y=t.unit.y;
-            t.unit.x=tx; t.unit.y=ty;
-            log(`${caster.name}と${t.unit.name}を入れ替え`, 'skill');
-            done();
-          });
+          chooseUnit(caster, aliveEnemies(caster.owner).map(e=>({x:e.x,y:e.y,unit:e})), (enemy)=>{
+            chooseUnit(caster, aliveAllies(caster.owner).filter(a=>a!==caster).map(a=>({x:a.x,y:a.y,unit:a})), (ally)=>{
+              const tx=enemy.unit.x, ty=enemy.unit.y;
+              enemy.unit.x=ally.unit.x; enemy.unit.y=ally.unit.y;
+              ally.unit.x=tx; ally.unit.y=ty;
+              log(`${enemy.unit.name}と${ally.unit.name}を入れ替え`, 'skill');
+              done();
+            }, '入れ替える味方を選択');
+          }, '入れ替える敵を選択');
         }
         break;
       case 23: // 陰陽師詩歌
@@ -2121,6 +2261,7 @@ function startBattle() {
 function startTurn() {
   const sideName = state.currentPlayer===0?'プレイヤー1':(state.mode==='ai'?'CPU':'プレイヤー2');
   log(`--- ${state.turn}ターン目: ${sideName}の手番 ---`, 'turn');
+  processBanishedReturns(state.currentPlayer);
   // Turn start effects
   aliveAllies(state.currentPlayer).forEach(u=>{
     u.moved = false;
@@ -2185,8 +2326,8 @@ function endPlayerTurn() {
 }
 
 function checkVictory() {
-  const p0alive = aliveAllies(0).length>0;
-  const p1alive = aliveAllies(1).length>0;
+  const p0alive = state.units.some(u=>u.alive && u.owner===0);
+  const p1alive = state.units.some(u=>u.alive && u.owner===1);
   if (!p0alive || !p1alive) {
     let winner;
     if (p0alive) winner = 0; else if (p1alive) winner = 1; else winner = -1;
@@ -2348,6 +2489,7 @@ function abortExecutingAbility() {
     state._execResolve = null;
     try { r(); } catch (_) {}
   }
+  state.currentAbilityContext = null;
   state.pendingAbilityCaster = null;
 }
 
@@ -2613,7 +2755,8 @@ async function aiTurn() {
     await sleep(350);
     const enemies = aliveEnemies(1);
     if (enemies.length===0) break;
-    const nearest = enemies.reduce((a,b)=>dist(unit,a)<=dist(unit,b)?a:b);
+    const kyonshi = enemies.find(e=>e.isKyonshi);
+    const nearest = kyonshi || enemies.reduce((a,b)=>dist(unit,a)<=dist(unit,b)?a:b);
     // Move closer first if not already in attack range
     const atkBefore = getAttackRange(unit);
     if (!unit.moved && atkBefore.length===0) {
