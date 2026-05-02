@@ -186,10 +186,10 @@ button:disabled { opacity:0.35; cursor:not-allowed; }
 #battle-sidebar #battle-basic-info .info-portrait { width:100%; max-height:200px; object-fit:cover; object-position:center 15%; border-radius:6px; display:block; margin-bottom:8px; background:#1a1d35; }
 #battle-sidebar #battle-basic-info .battle-info-row { display:grid; grid-template-columns:minmax(0, 1fr) minmax(180px, 1fr); gap:12px; align-items:start; }
 #battle-sidebar #battle-basic-info .battle-basic-main,
-#battle-sidebar #battle-basic-info .battle-basic-skill { min-width:0; }
-#battle-sidebar #battle-basic-info .battle-basic-skill { border-left:1px solid rgba(196,142,70,0.35); padding-left:12px; font-size:13px; line-height:1.45; }
-#battle-sidebar #battle-basic-info .battle-basic-skill-title { color:var(--gold); font-weight:bold; margin-bottom:4px; }
-#battle-sidebar #battle-basic-info .battle-basic-skill-name { font-weight:bold; margin-bottom:3px; }
+#battle-sidebar #battle-basic-info .battle-basic-sense { min-width:0; }
+#battle-sidebar #battle-basic-info .battle-basic-sense { border-left:1px solid rgba(196,142,70,0.35); padding-left:12px; font-size:13px; line-height:1.45; }
+#battle-sidebar #battle-basic-info .battle-basic-sense-title { color:var(--gold); font-weight:bold; margin-bottom:4px; }
+#battle-sidebar #battle-basic-info .battle-basic-sense-name { font-weight:bold; margin-bottom:3px; }
 #battle-sidebar #battle-actions { flex:0 0 auto; display:flex; flex-direction:column; gap:0; padding-top:8px; border-top:1px solid #2a3360; }
 #battle-sidebar #battle-actions button { width:100%; min-height:120px; padding:16px 14px 16px 118px; display:flex; flex-direction:column; justify-content:center; align-items:flex-start; overflow:hidden; font-size:15px; line-height:1.2; text-align:left; border:0; border-radius:6px; background-color:#06111d; background-repeat:no-repeat; background-size:100% 100%; background-position:left center; box-shadow:none; text-shadow:0 1px 2px rgba(0,0,0,0.9); }
 #battle-sidebar #battle-actions button:hover:not(:disabled) { filter:brightness(1.15); }
@@ -673,7 +673,7 @@ button:disabled { opacity:0.35; cursor:not-allowed; }
   #battle-sidebar #battle-basic-info .battle-info-row {
     display:contents;
   }
-  #battle-sidebar #battle-basic-info .battle-basic-skill {
+  #battle-sidebar #battle-basic-info .battle-basic-sense {
     display:none;
   }
   #battle-sidebar #battle-basic-info .battle-move-range {
@@ -3095,10 +3095,10 @@ function showUnitInfo(u) {
         <div class="bar hp"><div style="width:${(u.hp/u.maxHp)*100}%"></div></div>
         <div class="dim battle-move-range">移動${u.move} / 射程${rangeText}</div>
       </div>
-      <div class="battle-basic-skill">
-        <div class="battle-basic-skill-title">スキル [2AP]</div>
-        <div class="battle-basic-skill-name">${escapeHtml(c.skill?.name||'-')}</div>
-        <div class="dim">${escapeHtml(c.skill?.desc||'')}</div>
+      <div class="battle-basic-sense">
+        <div class="battle-basic-sense-title">センス</div>
+        <div class="battle-basic-sense-name">${escapeHtml(c.sense?.name||'-')}</div>
+        <div class="dim">${escapeHtml(c.sense?.desc||'')}</div>
       </div>
     </div>
   `;
