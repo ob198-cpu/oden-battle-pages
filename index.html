@@ -203,6 +203,8 @@ button:disabled { opacity:0.35; cursor:not-allowed; }
 #battle-sidebar #battle-actions .side-hint { font-size:14px; color:#a8d4ff; line-height:1.4; }
 #battle-sidebar #battle-actions .side-desc { max-width:100%; font-size:12px; color:var(--dim); line-height:1.4; margin-top:4px; padding-left:0; border-left:0; white-space:normal; word-break:break-all; }
 #battle-sidebar #battle-actions .side-desc strong { color:var(--text); display:block; margin-bottom:2px; }
+#battle-sidebar #battle-actions .move-cancel-btn { cursor:pointer; text-align:center; padding:8px 10px; margin-bottom:6px; border:1px solid rgba(196,142,70,0.65); border-radius:6px; background:rgba(60,40,20,0.75); color:#fff; font-weight:bold; }
+#battle-sidebar #battle-actions .move-cancel-btn:hover { filter:brightness(1.15); }
 #battle-sidebar #log { flex:1 1 auto; min-height:0; overflow-y:auto; font-size:13px; padding:28px 14px 14px 14px; border:1px solid rgba(196,142,70,0.6); border-radius:8px; background:#07101a var(--ui-panel-bg) center/100% 100% no-repeat; box-shadow:inset 0 0 20px rgba(0,0,0,0.7); }
 #battle-sidebar .end-turn-btn { margin-top:0; flex-shrink:0; width:100%; padding:18px 8px; font-size:24px; border:0; border-radius:6px; background-color:#43120d; background-image:url("img/ui/button-end-n.png?v=20260501"); background-repeat:no-repeat; background-size:cover; background-position:center; text-shadow:0 2px 3px rgba(0,0,0,0.9); box-shadow:none; overflow:hidden; }
 #battle-sidebar .end-turn-btn:hover { filter:brightness(1.2); }
@@ -970,6 +972,7 @@ function initState(mode) {
     peekUnitId: null, // 敵クリック時の情報ポップのみ
     actedUnits: new Set(), // ids that already acted this phase
     selectedAction: null, // { type:'move'|'attack'|'skill'|'ougi', options:{...} }
+    moveUndo: null, // 直前の通常移動だけ戻すための一時情報
     log: [],
     targetingResolve: null, // callback for targeting
     traps: [] // {x,y,owner,dmg}
@@ -2160,6 +2163,7 @@ function startTurn() {
 }
 
 function finishAction(unit) {
+  if (state.moveUndo?.unitId===unit?.id) state.moveUndo = null;
   if (unit.extraAction) { unit.extraAction = false; log(`${unit.name}は再行動可能！`, 'skill'); state.phase='battle'; state.selectedAction=null; renderBattle(); return; }
   state.selectedAction = null;
   state.phase = 'battle';
@@ -2172,6 +2176,7 @@ function endPlayerTurn() {
   aliveAllies(state.currentPlayer).forEach(u=>tickEffects(u));
   state.currentUnit = null;
   state.selectedAction = null;
+  state.moveUndo = null;
   // switch
   state.currentPlayer = otherOwner(state.currentPlayer);
   if (state.currentPlayer===0) state.turn++;
@@ -2271,7 +2276,10 @@ function selectCellClick(x,y) {
     const valid = state.selectedAction.options.cells;
     if (valid.some(c=>c.x===x&&c.y===y)) {
       const unit = findUnit(state.currentUnit);
+      const prev = { x:unit.x, y:unit.y, moved:unit.moved, extraMove:unit.extraMove };
+      const undoSafe = !hasEffect(unit,'heavyWound') && !state.traps.some(t=>t.x===x && t.y===y && t.owner!==unit.owner);
       moveUnit(unit, x, y);
+      state.moveUndo = undoSafe ? { unitId:unit.id, ...prev } : null;
       state.selectedAction = null;
       renderBattle();
     }
@@ -2474,7 +2482,8 @@ function updateBattleFloatingUI(){
   const og=canTakeAction(u,COST_OUGI);
   const rangeText = `${u.range[0]}${u.range[1]!==u.range[0]?'〜'+u.range[1]:''}`;
   const c = u.char;
-  actions.innerHTML=`<button type="button" ${atk?'':'disabled'} onclick="actionAttack()">
+  const moveCancel = canCancelMove(u) ? '<div class="move-cancel-btn" onclick="cancelLastMove()">移動キャンセル</div>' : '';
+  actions.innerHTML=`${moveCancel}<button type="button" ${atk?'':'disabled'} onclick="actionAttack()">
   <span class="action-label">${icon('attack')}<strong>通常攻撃 [1AP]${actedTag}</strong></span>
   <span class="side-desc">射程${escapeHtml(rangeText)}の敵1体を攻撃</span>
 </button>
@@ -2502,7 +2511,26 @@ function canTakeAction(unit, cost) {
   if (unit.acted) return false;
   return unit.ap >= cost;
 }
+function canCancelMove(unit) {
+  return !!(unit && state.moveUndo && state.moveUndo.unitId===unit.id && unit.alive && !unit.acted);
+}
+function cancelLastMove() {
+  const data = state.moveUndo;
+  const unit = data ? findUnit(data.unitId) : null;
+  if (!canCancelMove(unit)) return;
+  if (unitAt(data.x, data.y)) { log('元のマスに戻れません', 'info'); state.moveUndo = null; renderBattle(); return; }
+  unit.x = data.x;
+  unit.y = data.y;
+  unit.moved = data.moved;
+  unit.extraMove = data.extraMove;
+  state.moveUndo = null;
+  const cells = getReachableCells(unit);
+  state.selectedAction = { type:'move', options:{cells, attackCells:getMoveAttackArea(unit, cells)}, preview:true };
+  log(`${unit.name}の移動をキャンセルしました`, 'info');
+  renderBattle();
+}
 function consumeAction(unit, cost) {
+  if (state.moveUndo?.unitId===unit?.id) state.moveUndo = null;
   if (unit.extraAction) { return; }
   if (cost===COST_SKILL && unit.charId===3 && unit.freeSkillToken) {
     unit.freeSkillToken = false;
